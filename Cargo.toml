@@ -13,3 +13,5 @@ readme = "README.md"
 clap = { version = "3.0.0-beta.2", features = ["wrap_help"]}
 atty = "0.2.14"
 anyhow = "1.0.42"
+tap = "1.0.1"
+colored = "2.0.0"
