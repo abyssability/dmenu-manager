@@ -37,35 +37,48 @@ fn parse_args() -> ArgMatches {
         .get_matches()
 }
 
-fn get_stdin() -> io::Result<String> {
-    let mut buffer = String::new();
-    let result = io::stdin().read_to_string(&mut buffer);
-    if let Err(err) = result {
-        Err(err)
-    } else {
-        Ok(buffer)
-    }
+fn read_file(args: &ArgMatches) -> anyhow::Result<String> {
+    let path = args.value_of("CONFIG").expect("unreachable");
+    fs::read_to_string(&path).context(format!("can't read config file `{}`", path.bold()))
 }
 
+fn read_stdin() -> anyhow::Result<String> {
+    let mut buf = String::new();
+    io::stdin()
+        .read_to_string(&mut buf)
+        .context("failed to read piped input")?;
+    Ok(buf)
+}
+
+fn parse_config(config: String) -> String {
+    config
+}
+
+fn run_dmenu(config: String) -> String {
+    println!("Dmenu got:\n{}", config);
+    String::new()
+}
+
+fn run_command(_command: String) {}
+
 fn run() -> anyhow::Result<()> {
-    let matches = parse_args();
-    if atty::is(Stream::Stdin) {
-        let path = matches.value_of("CONFIG").unwrap();
-        let config = fs::read_to_string(&path)
-            .context(format!("can't read config file `{}`", path.bold()))?;
-        println!("Hello, world! Config: {}", config);
+    let args = parse_args();
+    let config = if atty::is(Stream::Stdin) {
+        read_file(&args)?
     } else {
-        let piped_input = get_stdin().context("failed to read piped input")?;
-        println!("Hello, pipe! I got: {}", piped_input);
-    }
+        read_stdin()?
+    };
+    let config = parse_config(config);
+    let command = run_dmenu(config);
+    run_command(command);
     Ok(())
 }
 
 fn report_errors(result: &anyhow::Result<()>) {
     if let Err(err) = result {
-        let header = "Error:".red().bold();
+        let header = "Error".red().bold();
         let err = format!("{:#}", err);
-        eprintln!("{} {}.", header, err);
+        eprintln!("{}: {}.", header, err);
         process::exit(1);
     }
 }
