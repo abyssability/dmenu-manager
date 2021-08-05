@@ -140,10 +140,7 @@ impl Menu {
             Config::default()
         };
 
-        Ok(Self {
-            menu,
-            config,
-        })
+        Ok(Self { menu, config })
     }
 }
 
@@ -365,7 +362,9 @@ fn get_command_choice(mut menu: Menu) -> anyhow::Result<String> {
     let choice = JoinerNum::from_str(idstr).value();
     let id: usize = choice.try_into().expect("error converting u32 to usize?");
     let command = if idstr.is_empty() {
-        if menu.config.ad_hoc.unwrap_or(false) {
+        if raw_choice.trim().is_empty() {
+            String::new()
+        } else if menu.config.ad_hoc.unwrap_or(false) {
             raw_choice.tap_mut(|string| {
                 string.pop();
             })
