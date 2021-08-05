@@ -390,7 +390,7 @@ fn run_command(command: String) {
 
 fn run() -> anyhow::Result<()> {
     let args = parse_args();
-    let config = if atty::is(Stream::Stdin) {
+    let config = if args.is_present("CONFIG") || atty::is(Stream::Stdin) {
         read_file(&args)?
     } else {
         read_stdin()?
