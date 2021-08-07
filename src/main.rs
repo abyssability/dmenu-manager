@@ -5,71 +5,87 @@ use clap::{
 };
 use colored::Colorize;
 use serde::Deserialize;
-use std::convert::TryInto;
 use std::io::{self, Read, Write};
 use std::process::{self, Command, Stdio};
 use std::{env, fs, panic, thread};
 use tap::prelude::*;
 use toml::Value;
 
-const ZWJ: char = '\u{200d}';
-const ZWNJ: char = '\u{200c}';
+use zero_width::Ternary;
 
-struct JoinerNum(String);
+pub mod zero_width {
+    /// Zero width space.
+    pub const ZERO: char = '\u{200b}';
+    /// Zero width non joiner.
+    pub const ONE: char = '\u{200c}';
+    /// Zero width joiner.
+    pub const TWO: char = '\u{200d}';
+    pub const CHARS: &[char] = &[ZERO, ONE, TWO];
 
-impl JoinerNum {
-    fn new(num: u32) -> Self {
-        let binary = format!("{:b}", num);
-        let jnum = binary
-            .chars()
-            .filter_map(|char| match char {
-                '0' => Some(ZWJ),
-                '1' => Some(ZWNJ),
-                _ => unreachable!(),
-            })
-            .collect::<String>();
-        assert!(!jnum.is_empty());
 
-        Self(jnum)
-    }
+    /// Ternary encoded zero width joiners/non-joiners.
+    pub struct Ternary(String);
 
-    fn value(&self) -> u32 {
-        if self.0.is_empty() {
-            return 0;
+    impl Ternary {
+        pub fn new(num: usize) -> Self {
+            let ternary = format!("{}", radix_fmt::radix_3(num));
+            let ternary = ternary
+                .chars()
+                .map(|c| match c {
+                    '0' => ZERO,
+                    '1' => ONE,
+                    '2' => TWO,
+                    _ => unreachable!(),
+                })
+                .collect::<String>();
+
+            Self(ternary)
         }
 
-        let binary = self
-            .0
-            .chars()
-            .filter_map(|char| match char {
-                ZWJ => Some('0'),
-                ZWNJ => Some('1'),
-                _ => unreachable!(),
-            })
-            .collect::<String>();
+        pub fn value(&self) -> usize {
+            let ternary = self
+                .0
+                .chars()
+                .map(|c| match c {
+                    ZERO => '0',
+                    ONE => '1',
+                    TWO => '2',
+                    _ => unreachable!(),
+                })
+                .collect::<String>();
 
-        u32::from_str_radix(binary.as_str(), 2).expect("unreachable")
-    }
-
-    fn from_str(string: &str) -> Self {
-        if string.is_empty() {
-            return Self(String::from(ZWJ));
+            usize::from_str_radix(ternary.as_str(), 3).expect("unreachable")
         }
 
-        for char in string.chars() {
-            if char != ZWJ && char != ZWNJ {
-                panic!(
-                    "provided string contains character other than `zero width {{,non}} joiner`{}",
-                    ""
-                )
-            }
+        pub fn as_str(&self) -> &str {
+            self.0.as_str()
         }
-
-        Self(String::from(string))
     }
 
-    fn as_str(&self) -> &str {
-        self.0.as_str()
+    impl From<&str> for Ternary {
+        fn from(string: &str) -> Self {
+            assert!(!string.is_empty(), "string was empty");
+            assert!(
+                !string.contains(|c| !CHARS.contains(&c)),
+                "string contained a character other than zero width space, joiner, or non joiner"
+            );
+
+            Self(String::from(string))
+        }
+    }
+
+    pub fn trim(string: &str) -> &str {
+        string.trim_matches(CHARS)
+    }
+
+    pub fn take(string: &str) -> &str {
+        let result = string.match_indices(|c| !CHARS.contains(&c)).next();
+
+        if let Some((last, _)) = result {
+            &string[..last]
+        } else {
+            ""
+        }
     }
 }
 
@@ -310,35 +326,6 @@ fn run_dmenu(entries: String, dmenu_args: Vec<String>) -> anyhow::Result<String>
     Ok(String::from_utf8(output.stdout)?)
 }
 
-fn strip_joiners(string: &str) -> &str {
-    let first = string
-        .chars()
-        .enumerate()
-        .skip_while(|(_, c)| *c == ZWJ || *c == ZWNJ)
-        .map(|(i, _)| i)
-        .next();
-
-    if let Some(first) = first {
-        &string[first * 3..]
-    } else {
-        string
-    }
-}
-
-fn take_joiners(string: &str) -> &str {
-    let last = string
-        .chars()
-        .enumerate()
-        .take_while(|(_, c)| *c == ZWJ || *c == ZWNJ)
-        .count();
-
-    if last > 0 {
-        &string[..last * 3]
-    } else {
-        ""
-    }
-}
-
 fn get_command_choice(mut menu: Menu) -> anyhow::Result<String> {
     let capacity = menu
         .menu
@@ -347,8 +334,8 @@ fn get_command_choice(mut menu: Menu) -> anyhow::Result<String> {
     let capacity = capacity + (menu.menu.len() * 2);
     let entries = String::with_capacity(capacity).tap_mut(|string| {
         for (i, entry) in menu.menu.iter().enumerate() {
-            string.push_str(JoinerNum::new(i.try_into().expect("too many menu entries")).as_str());
-            string.push_str(strip_joiners(entry.name.as_str()));
+            string.push_str(Ternary::new(i).as_str());
+            string.push_str(zero_width::trim(entry.name.as_str()));
             string.push('\n')
         }
     });
@@ -358,9 +345,7 @@ fn get_command_choice(mut menu: Menu) -> anyhow::Result<String> {
         Vec::new()
     };
     let raw_choice = run_dmenu(entries, dmenu_args)?;
-    let idstr = take_joiners(raw_choice.as_str());
-    let choice = JoinerNum::from_str(idstr).value();
-    let id: usize = choice.try_into().expect("error converting u32 to usize?");
+    let idstr = zero_width::take(raw_choice.as_str());
     let command = if idstr.is_empty() {
         if raw_choice.trim().is_empty() {
             String::new()
@@ -369,10 +354,13 @@ fn get_command_choice(mut menu: Menu) -> anyhow::Result<String> {
                 string.pop();
             })
         } else {
-            anyhow::bail!("ad-hoc commands are disabled; choose a menu option or set `config.ad-hoc = true` in the config");
+            anyhow::bail!(
+                "ad-hoc commands are disabled; \
+                choose a provided menu option or set `config.ad-hoc = true`");
         }
     } else {
-        menu.menu[id].run.clone()
+        let choice = Ternary::from(idstr).value();
+        menu.menu[choice].run.clone()
     };
 
     Ok(command)
@@ -390,7 +378,7 @@ fn run_command(command: String) {
 
 fn run() -> anyhow::Result<()> {
     let args = parse_args();
-    let config = if args.is_present("CONFIG") || atty::is(Stream::Stdin) {
+    let config = if args.is_present("CONFIG") {
         read_file(&args)?
     } else {
         read_stdin()?
