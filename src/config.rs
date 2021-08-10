@@ -74,7 +74,7 @@ impl Dmenu {
         ];
 
         for (arg, flag) in args_list {
-            push_arg(&mut args, arg.as_ref(), flag, |value| value.clone());
+            push_arg(&mut args, arg.as_ref(), flag, Clone::clone);
         }
 
         args

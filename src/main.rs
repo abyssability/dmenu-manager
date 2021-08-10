@@ -84,13 +84,13 @@ fn run_dmenu(entries: String, dmenu_args: &[String]) -> anyhow::Result<String> {
     Ok(String::from_utf8(output.stdout)?)
 }
 
-fn get_command_choice<T: Tag>(menu: &mut Menu) -> anyhow::Result<String> {
-    let capacity = menu
+fn construct_entries<T: Tag>(menu: &Menu) -> String {
+    let mut capacity = menu
         .entries
         .iter()
         .fold(0, |capacity, entry| entry.name.len() + capacity);
-    let capacity = capacity + (menu.entries.len() * 2);
-    let entries = String::with_capacity(capacity).tap_mut(|string| {
+    capacity += menu.entries.len() * 10;
+    String::with_capacity(capacity).tap_mut(|string| {
         for (i, entry) in menu.entries.iter().enumerate() {
             string.push_str(T::new(i).as_str());
             let separator = T::separator().and_then(|def| {
@@ -105,37 +105,41 @@ fn get_command_choice<T: Tag>(menu: &mut Menu) -> anyhow::Result<String> {
             string.push_str(&entry.name);
             string.push('\n');
         }
-    });
+    })
+}
+
+fn get_command_choice<T: Tag>(menu: &mut Menu) -> anyhow::Result<Vec<String>> {
+    let entries = construct_entries::<T>(menu);
     let dmenu_args = menu
         .config
         .dmenu
         .as_ref()
         .map_or_else(Vec::new, Dmenu::args);
     let raw_choice = run_dmenu(entries, &dmenu_args)?;
-    let command = {
-        let choice = raw_choice.trim();
-        let tag = T::find(choice);
+    let commands = {
+        let choices = raw_choice.trim().split('\n');
+        choices.map(str::trim).filter(|choice| !choice.is_empty()).map(|choice| {
+            let tag = T::find(choice);
 
-        if let Some(tag) = tag {
-            let id = tag.value();
-            menu.entries[id].run.clone()
-        } else if choice.is_empty() {
-            String::new()
-        } else if menu.config.ad_hoc.unwrap_or(false) {
-            String::from(choice)
-        } else {
-            anyhow::bail!(
-                "ad-hoc commands are disabled; \
-                    choose a menu option or set `config.ad-hoc = true`"
-            );
-        }
+            if let Some(tag) = tag {
+                let id = tag.value();
+                Ok(menu.entries[id].run.clone())
+            } else if menu.config.ad_hoc.unwrap_or(false) {
+                Ok(String::from(choice))
+            } else {
+                anyhow::bail!(
+                    "ad-hoc commands are disabled; \
+                        choose a menu option or set `config.ad-hoc = true`"
+                );
+            }
+        }).collect::<Result<Vec<_>, _>>()?
     };
 
-    Ok(command)
+    Ok(commands)
 }
 
-fn run_command(command: &str, shell: &str) -> anyhow::Result<()> {
-    if !command.is_empty() {
+fn run_command(commands: &[String], shell: &str) -> anyhow::Result<()> {
+    for command in commands {
         Command::new(shell)
             .arg("-c")
             .arg(command)
@@ -154,13 +158,13 @@ fn run() -> anyhow::Result<()> {
     };
     let mut menu = Menu::try_new(&config)?;
     let numbered = menu.config.numbered.unwrap_or(false);
-    let command = if numbered {
+    let commands = if numbered {
         get_command_choice::<Decimal>(&mut menu)?
     } else {
         get_command_choice::<Ternary>(&mut menu)?
     };
     let shell = menu.config.shell.as_deref().unwrap_or("sh");
-    run_command(&command, shell)?;
+    run_command(&commands, shell)?;
     Ok(())
 }
 
