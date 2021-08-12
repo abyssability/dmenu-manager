@@ -18,3 +18,7 @@ colored = "2.0.0"
 serde = { version = "1.0.127", features = ["derive"] }
 toml = "0.5.8"
 radix_fmt = "1.0.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
