@@ -10,27 +10,69 @@ use clap::{
 use colored::Colorize;
 use tap::prelude::*;
 
-use config::{Dmenu, Menu};
+use config::Menu;
 use tag::{Decimal, Tag, Ternary};
 
 pub mod config;
 pub mod tag;
 
+fn main() {
+    let result = run();
+    report_errors(&result);
+}
+
+fn report_errors(result: &anyhow::Result<()>) {
+    if let Err(err) = result {
+        let header = "Error".red().bold();
+        eprintln!("{}: {:#}.", header, err);
+        process::exit(1);
+    }
+}
+
+fn run() -> anyhow::Result<()> {
+    let args = parse_args();
+    let config = if let Some(path) = args.value_of("CONFIG") {
+        read_file(path)?
+    } else {
+        read_stdin()?
+    };
+    let mut menu = Menu::try_new(&config)?;
+    let commands = if menu.config.numbered {
+        get_command_choice::<Decimal>(&mut menu)?
+    } else {
+        get_command_choice::<Ternary>(&mut menu)?
+    };
+    run_command(&commands, &menu.config.shell)?;
+    Ok(())
+}
+
 fn parse_args() -> ArgMatches {
     App::new(crate_name!())
-        .global_setting(AppSettings::ColoredHelp)
         .version(crate_version!())
         .author(crate_authors!())
         .about(crate_description!())
         .long_about(concat!(
             crate_description!(),
-            "\n\n",
+            "\n",
             "The toml config may be piped in instead of specifying a file path.",
         ))
         .after_help("Use `-h` for short descriptions, or `--help` for more detail.")
+        .after_long_help(
+            format!(
+                "```\n{}```\n\n{}",
+                include_str!("../example.toml"),
+                "Use `-h` for short descriptions, or `--help` for more detail."
+            )
+            .as_str(),
+        )
+        .global_setting(AppSettings::ColoredHelp)
         .arg(
             Arg::new("CONFIG")
                 .about("Path to the target toml config file")
+                .long_about(
+                    "Path to the target toml config file.\n\
+                    Optional if piping config through stdin.",
+                )
                 .index(1)
                 .pipe(|arg| {
                     if atty::is(Stream::Stdin) {
@@ -43,9 +85,8 @@ fn parse_args() -> ArgMatches {
         .get_matches()
 }
 
-fn read_file(args: &ArgMatches) -> anyhow::Result<String> {
-    let path = args.value_of("CONFIG").expect("unreachable");
-    fs::read_to_string(&path).context(format!("can't read config file `{}`", path.bold()))
+fn read_file(path: &str) -> anyhow::Result<String> {
+    fs::read_to_string(path).context(format!("can't read config file `{}`", path.bold()))
 }
 
 fn read_stdin() -> anyhow::Result<String> {
@@ -54,6 +95,55 @@ fn read_stdin() -> anyhow::Result<String> {
         .read_to_string(&mut buf)
         .context("failed to read piped input")?;
     Ok(buf)
+}
+
+fn get_command_choice<T: Tag>(menu: &mut Menu) -> anyhow::Result<Vec<String>> {
+    let entries = construct_entries::<T>(menu);
+    let dmenu_args = menu.config.dmenu.args();
+    let raw_choice = run_dmenu(entries, &dmenu_args)?;
+    let commands = {
+        let choices = raw_choice.trim().split('\n');
+        choices
+            .map(str::trim)
+            .filter(|choice| !choice.is_empty())
+            .map(|choice| {
+                let tag = T::find(choice);
+
+                if let Some(tag) = tag {
+                    let id = tag.value();
+                    Ok(menu.entries[id].run.clone())
+                } else if menu.config.ad_hoc {
+                    Ok(String::from(choice))
+                } else {
+                    anyhow::bail!(
+                        "ad-hoc commands are disabled; \
+                        choose a menu option or set `config.ad-hoc = true`"
+                    );
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    };
+
+    Ok(commands)
+}
+
+fn construct_entries<T: Tag>(menu: &Menu) -> String {
+    let mut capacity = menu
+        .entries
+        .iter()
+        .fold(0, |capacity, entry| entry.name.len() + capacity);
+    capacity += menu.entries.len() * 10;
+    let separator = T::separator().and_then(|def| menu.config.separator.custom_or(def));
+    String::with_capacity(capacity).tap_mut(|string| {
+        for (i, entry) in menu.entries.iter().enumerate() {
+            string.push_str(T::new(i).as_str());
+            if let Some(separator) = separator {
+                string.push_str(separator);
+            }
+            string.push_str(&entry.name);
+            string.push('\n');
+        }
+    })
 }
 
 fn run_dmenu(entries: String, dmenu_args: &[String]) -> anyhow::Result<String> {
@@ -84,60 +174,6 @@ fn run_dmenu(entries: String, dmenu_args: &[String]) -> anyhow::Result<String> {
     Ok(String::from_utf8(output.stdout)?)
 }
 
-fn construct_entries<T: Tag>(menu: &Menu) -> String {
-    let mut capacity = menu
-        .entries
-        .iter()
-        .fold(0, |capacity, entry| entry.name.len() + capacity);
-    capacity += menu.entries.len() * 10;
-    let separator = T::separator().and_then(|def| {
-        menu.config
-            .separator
-            .as_ref()
-            .map_or_else(|| Some(def), |sep| sep.custom_or(def))
-    });
-    String::with_capacity(capacity).tap_mut(|string| {
-        for (i, entry) in menu.entries.iter().enumerate() {
-            string.push_str(T::new(i).as_str());
-            if let Some(separator) = separator {
-                string.push_str(separator);
-            }
-            string.push_str(&entry.name);
-            string.push('\n');
-        }
-    })
-}
-
-fn get_command_choice<T: Tag>(menu: &mut Menu) -> anyhow::Result<Vec<String>> {
-    let entries = construct_entries::<T>(menu);
-    let dmenu_args = menu
-        .config
-        .dmenu
-        .as_ref()
-        .map_or_else(Vec::new, Dmenu::args);
-    let raw_choice = run_dmenu(entries, &dmenu_args)?;
-    let commands = {
-        let choices = raw_choice.trim().split('\n');
-        choices.map(str::trim).filter(|choice| !choice.is_empty()).map(|choice| {
-            let tag = T::find(choice);
-
-            if let Some(tag) = tag {
-                let id = tag.value();
-                Ok(menu.entries[id].run.clone())
-            } else if menu.config.ad_hoc.unwrap_or(false) {
-                Ok(String::from(choice))
-            } else {
-                anyhow::bail!(
-                    "ad-hoc commands are disabled; \
-                        choose a menu option or set `config.ad-hoc = true`"
-                );
-            }
-        }).collect::<Result<Vec<_>, _>>()?
-    };
-
-    Ok(commands)
-}
-
 fn run_command(commands: &[String], shell: &str) -> anyhow::Result<()> {
     for command in commands {
         Command::new(shell)
@@ -147,37 +183,4 @@ fn run_command(commands: &[String], shell: &str) -> anyhow::Result<()> {
             .context(format!("failed to run command `{}`", command))?;
     }
     Ok(())
-}
-
-fn run() -> anyhow::Result<()> {
-    let args = parse_args();
-    let config = if args.is_present("CONFIG") {
-        read_file(&args)?
-    } else {
-        read_stdin()?
-    };
-    let mut menu = Menu::try_new(&config)?;
-    let numbered = menu.config.numbered.unwrap_or(false);
-    let commands = if numbered {
-        get_command_choice::<Decimal>(&mut menu)?
-    } else {
-        get_command_choice::<Ternary>(&mut menu)?
-    };
-    let shell = menu.config.shell.as_deref().unwrap_or("sh");
-    run_command(&commands, shell)?;
-    Ok(())
-}
-
-fn report_errors(result: &anyhow::Result<()>) {
-    if let Err(err) = result {
-        let header = "Error".red().bold();
-        let err = format!("{:#}", err);
-        eprintln!("{}: {}.", header, err);
-        process::exit(1);
-    }
-}
-
-fn main() {
-    let result = run();
-    report_errors(&result);
 }

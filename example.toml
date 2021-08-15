@@ -1,0 +1,80 @@
+#    example toml config, not default
+#    See the toml website, `https://toml.io`, for more info.
+
+#  `entries` is an array of values.
+#  The run value will be used both as a name and command.
+entries = [
+    #  A valid value can be a single string or a table;
+    #  a string will be interpreted as a run value.
+    "name and command",
+    #  The table can contain a run value (the command to run)
+    #  and a group value, which all names are ordered by
+    #  before being displayed; the default group is `0` (zero).
+    #  Larger groups are displayed first, negative groups are last.
+    { run = "command and name", group = 5 },
+    { run = "last", group = -100 },
+    #  The only required table value is `run`.
+    { run = "table with only run" },
+]
+
+#  `menu` is a table of name-value pairs.
+#  The name will be displayed;
+#  if selected, the run value will be executed.
+[menu]
+name = "command to run"
+#  The name can be quoted to allow spaces (and more).
+"space separated name" = { run = "echo 'why?'", group = 1 }
+#  Triple quotes are multi-line strings.
+small-script = """
+ls | shuf
+firefox & disown
+"""
+
+[menu."most important"]
+run = "echo 'incredibly important'"
+group = 9001
+
+[menu.foo]
+run = "ls"
+
+
+[config]
+#  Allows "custom" commands, not specified in `entries` or `menu`.
+#  Type a command into dmenu, then press shift+enter to execute it.
+ad-hoc = true
+#  Specify a custom shell. The default is `sh`.
+shell = "fish"
+#  Prepend a number to each name.
+numbered = true
+#  Disable separator between numbers and names.
+#separator = false
+#  A custom separator can be specified as a string.
+separator = " -- "
+
+#  Passes config to dmenu as flags.
+#  See `man dmenu` for more info.
+[config.dmenu]
+#  Give dmenu a custom prompt.
+prompt = "dmenu:"
+#  Give dmenu a custom font.
+font = "Hack Nerd Font:size=16"
+#  Give dmenu a custom background color.
+background = "#002b36"
+#  Give dmenu a custom font color.
+foreground = "#839496"
+#  Give dmenu a custom background color for the selected menu entry.
+selected-background = "#268bd2"
+#  Give dmenu a custom font color for the selected menu entry.
+selected-foreground = "#002b36"
+#  Make dmenu appear at the bottom of the screen.
+bottom = true
+#  Make dmenu grab keyboard input before reading stdin.
+#fast = true
+#  Make dmenu match menu entries case sensitively while searching.
+case-sensitive = true
+#  Make dmenu list items vertically using multiple lines.
+lines = 8
+#  Make dmenu display on a different monitor.
+monitor = 0
+#  Make dmenu embed into `window-id`.
+#window-id = "0"

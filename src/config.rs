@@ -4,22 +4,38 @@ use anyhow::Context;
 use serde::Deserialize;
 use toml::{value::Table, Value};
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
+#[serde(default)]
 pub struct Config {
     #[serde(rename = "ad-hoc")]
-    pub ad_hoc: Option<bool>,
-    pub numbered: Option<bool>,
-    pub separator: Option<Separator>,
-    pub shell: Option<String>,
-    pub dmenu: Option<Dmenu>,
+    pub ad_hoc: bool,
+    pub numbered: bool,
+    pub separator: Separator,
+    pub shell: String,
+    pub dmenu: Dmenu,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            ad_hoc: false,
+            numbered: false,
+            separator: Separator::True,
+            shell: "sh".to_owned(),
+            dmenu: Dmenu::default(),
+        }
+    }
 }
 
 #[derive(Default, Deserialize)]
 pub struct Dmenu {
-    pub bottom: Option<bool>,
-    pub fast: Option<bool>,
+    #[serde(default)]
+    pub bottom: bool,
+    #[serde(default)]
+    pub fast: bool,
+    #[serde(default)]
     #[serde(rename = "case-sensitive")]
-    pub case_sensitive: Option<bool>,
+    pub case_sensitive: bool,
     pub lines: Option<u32>,
     pub monitor: Option<u32>,
     pub prompt: Option<String>,
@@ -38,43 +54,43 @@ impl Dmenu {
     pub fn args(&self) -> Vec<String> {
         fn push_arg<T>(
             args: &mut Vec<String>,
-            arg: Option<T>,
             flag: &str,
+            arg: Option<T>,
             f: impl FnOnce(T) -> String,
         ) {
             if let Some(value) = arg {
-                args.push(String::from(flag));
+                args.push(flag.to_owned());
                 args.push(f(value));
             }
         }
 
         let mut args = Vec::new();
 
-        let mut add_arg = |arg: Option<bool>, cond, flag| {
-            if arg.unwrap_or(false) == cond {
-                args.push(String::from(flag));
+        let mut add_arg = |cond, flag: &str| {
+            if cond {
+                args.push(flag.to_owned());
             }
         };
 
-        add_arg(self.bottom, true, "-b");
-        add_arg(self.fast, true, "-f");
-        add_arg(self.case_sensitive, false, "-i");
+        add_arg(self.bottom, "-b");
+        add_arg(self.fast, "-f");
+        add_arg(!self.case_sensitive, "-i");
 
-        push_arg(&mut args, self.lines, "-l", |lines| lines.to_string());
-        push_arg(&mut args, self.monitor, "-m", |monitor| monitor.to_string());
+        push_arg(&mut args, "-l", self.lines, |n| n.to_string());
+        push_arg(&mut args, "-m", self.monitor, |n| n.to_string());
 
         let args_list = [
-            (&self.prompt, "-p"),
-            (&self.font, "-fn"),
-            (&self.background, "-nb"),
-            (&self.foreground, "-nf"),
-            (&self.selected_background, "-sb"),
-            (&self.selected_foreground, "-sf"),
-            (&self.window_id, "-w"),
+            ("-p", &self.prompt),
+            ("-fn", &self.font),
+            ("-nb", &self.background),
+            ("-nf", &self.foreground),
+            ("-sb", &self.selected_background),
+            ("-sf", &self.selected_foreground),
+            ("-w", &self.window_id),
         ];
 
-        for (arg, flag) in args_list {
-            push_arg(&mut args, arg.as_ref(), flag, Clone::clone);
+        for (flag, arg) in args_list {
+            push_arg(&mut args, flag, arg.as_ref(), String::clone);
         }
 
         args
@@ -111,12 +127,6 @@ impl TryFrom<Value> for Separator {
     }
 }
 
-impl Default for Separator {
-    fn default() -> Self {
-        Self::False
-    }
-}
-
 pub struct Menu {
     pub entries: Vec<Entry>,
     pub config: Config,
@@ -125,12 +135,12 @@ pub struct Menu {
 impl Menu {
     pub fn try_new(config: &str) -> anyhow::Result<Self> {
         if config.trim().is_empty() {
-            anyhow::bail!("provided toml config is empty");
+            anyhow::bail!("provided config is empty");
         }
 
         let value = config
             .parse::<Value>()
-            .context("can't parse provided toml config")?;
+            .context("can't parse provided config")?;
 
         match value {
             Value::Table(mut table) => {
@@ -147,10 +157,7 @@ impl Menu {
 
                 Ok(Self { entries, config })
             }
-            other => panic!(
-                "`config::Menu` construction requires a `toml::Value::Table`; found `{:?}`",
-                other
-            ),
+            _ => unreachable!(),
         }
     }
 }
@@ -178,25 +185,26 @@ impl Entries {
         match (menu, entries) {
             (Some(menu), Some(entries)) => menu
                 .into_iter()
-                .map(Entry::try_from_menu)
-                .chain(entries.into_iter().map(Entry::try_from_entry))
+                .map(|(name, value)| Entry::try_new(value, Some(name)))
+                .chain(entries.into_iter().map(|value| Entry::try_new(value, None)))
                 .collect::<Result<Vec<_>, _>>(),
             (Some(menu), None) => menu
                 .into_iter()
-                .map(Entry::try_from_menu)
+                .map(|(name, value)| Entry::try_new(value, Some(name)))
                 .collect::<Result<Vec<_>, _>>(),
             (None, Some(entries)) => entries
                 .into_iter()
-                .map(Entry::try_from_entry)
+                .map(|value| Entry::try_new(value, None))
                 .collect::<Result<Vec<_>, _>>(),
             (None, None) => Err(anyhow::anyhow!(
-                "no menu entries defined; give at least one of `menu` or `entries` a value"
+                "no menu entries defined; \
+                give at least one of `menu` or `entries` a value;\n\
+                try --help for more info"
             )),
         }
     }
 }
 
-#[derive(Debug)]
 pub struct Entry {
     pub name: String,
     pub run: String,
@@ -212,48 +220,48 @@ impl Entry {
         }
     }
 
-    fn try_from_menu((name, value): (String, Value)) -> anyhow::Result<Self> {
+    fn try_new(value: Value, name: Option<String>) -> anyhow::Result<Self> {
         match value {
-            Value::String(run) => Ok(Self {
-                name,
-                run,
-                group: 0,
-            }),
-            Value::Table(mut table) => Ok(Self::try_new(&mut table, Some(name))?),
-            other => Err(not_valid(
-                &format!("menu.{}", name),
-                "`string` or `table`",
-                &other,
-            )),
-        }
-    }
-
-    fn try_from_entry(value: Value) -> anyhow::Result<Self> {
-        match value {
-            Value::String(run) => Ok(Self::new(run)),
-            Value::Table(mut table) => Ok(Self::try_new(&mut table, None)?),
-            other => Err(not_valid("entries", "`string` or `table`", &other)),
-        }
-    }
-
-    fn try_new(table: &mut Table, name: Option<String>) -> anyhow::Result<Self> {
-        let run: String =
-            table
-                .remove("run")
-                .map(Value::try_into)
-                .context(if let Some(ref name) = name {
-                    format!("menu.{} has no `run` value", name)
+            Value::String(run) => {
+                if let Some(name) = name {
+                    Ok(Self {
+                        name,
+                        run,
+                        group: 0,
+                    })
                 } else {
-                    "entry has no `run` value".to_string()
-                })??;
-        let group = table
-            .remove("group")
-            .map(Value::try_into)
-            .transpose()?
-            .unwrap_or(0);
-        let name = name.unwrap_or_else(|| run.clone());
+                    Ok(Self::new(run))
+                }
+            }
+            Value::Table(mut table) => {
+                let run: String = table.remove("run").map(Value::try_into).context(
+                    if let Some(ref name) = name {
+                        format!("`menu.{}` has no `run` value", name)
+                    } else {
+                        "entry has no `run` value".to_owned()
+                    },
+                )??;
+                let group = table
+                    .remove("group")
+                    .map(Value::try_into)
+                    .transpose()?
+                    .unwrap_or(0);
+                let name = name.unwrap_or_else(|| run.clone());
 
-        Ok(Self { name, run, group })
+                Ok(Self { name, run, group })
+            }
+            other => {
+                if let Some(name) = name {
+                    Err(not_valid(
+                        &format!("menu.{}", name),
+                        "`string` or `table`",
+                        &other,
+                    ))
+                } else {
+                    Err(not_valid("entries", "`string` or `table`", &other))
+                }
+            }
+        }
     }
 }
 
