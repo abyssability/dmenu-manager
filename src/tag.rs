@@ -49,9 +49,8 @@ impl Tag for Ternary {
     fn value(&self) -> usize {
         let ternary = self
             .0
+            .trim_matches(SEPARATOR)
             .chars()
-            .skip_while(|&c| c == SEPARATOR)
-            .take_while(|&c| c != SEPARATOR)
             .map(|c| match c {
                 ZERO => '0',
                 ONE => '1',
@@ -87,24 +86,15 @@ pub struct Decimal(String);
 
 impl Tag for Decimal {
     fn new(num: usize) -> Self {
-        let decimal = format!("{}", num);
-        let decimal = iter::once(SEPARATOR)
-            .chain(decimal.chars())
-            .chain(iter::once(SEPARATOR))
-            .collect::<String>();
+        let decimal = format!("{1}{0}{1}", num, SEPARATOR);
 
         Self(decimal)
     }
 
     fn value(&self) -> usize {
-        let decimal = self
-            .0
-            .chars()
-            .skip_while(|&c| c == SEPARATOR)
-            .take_while(|&c| c != SEPARATOR)
-            .collect::<String>();
+        let decimal = self.0.as_str().trim_matches(SEPARATOR);
 
-        decimal.as_str().parse::<usize>().expect("unreachable")
+        decimal.parse::<usize>().expect("unreachable")
     }
 
     fn find(string: &str) -> Option<Self> {
