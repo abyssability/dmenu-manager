@@ -90,17 +90,17 @@ fn construct_entries<T: Tag>(menu: &Menu) -> String {
         .iter()
         .fold(0, |capacity, entry| entry.name.len() + capacity);
     capacity += menu.entries.len() * 10;
+    let separator = T::separator().and_then(|def| {
+        menu.config
+            .separator
+            .as_ref()
+            .map_or_else(|| Some(def), |sep| sep.custom_or(def))
+    });
     String::with_capacity(capacity).tap_mut(|string| {
         for (i, entry) in menu.entries.iter().enumerate() {
             string.push_str(T::new(i).as_str());
-            let separator = T::separator().and_then(|def| {
-                menu.config
-                    .separator
-                    .as_ref()
-                    .and_then(|sep| sep.custom_or(def))
-            });
             if let Some(separator) = separator {
-                string.push_str(&separator);
+                string.push_str(separator);
             }
             string.push_str(&entry.name);
             string.push('\n');

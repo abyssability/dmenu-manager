@@ -90,11 +90,11 @@ pub enum Separator {
 }
 
 impl Separator {
-    pub fn custom_or(&self, def: &str) -> Option<String> {
+    pub fn custom_or<'a>(&'a self, def: &'a str) -> Option<&'a str> {
         match self {
             Self::False => None,
-            Self::True => Some(def.to_string()),
-            Self::Custom(custom) => Some(custom.clone()),
+            Self::True => Some(def),
+            Self::Custom(custom) => Some(custom),
         }
     }
 }
