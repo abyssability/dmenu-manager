@@ -31,5 +31,5 @@ Read the entire unlicense in the [unlicense file](./UNLICENSE).
 For more information, please refer to <https://unlicense.org/>.
 
 ## Contribution
-Any contribution intentionally submitted by you
-for inclusion in the software shall be unlicensed.
+Any contribution intentionally submitted by you for inclusion in the
+software shall be unlicensed without any additional terms or conditions.
