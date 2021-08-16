@@ -16,6 +16,18 @@ use tag::{Decimal, Tag, Ternary};
 pub mod config;
 pub mod tag;
 
+const SHORT_EXAMPLE: &str = r#"    # short example config; see `--help` for more info
+    [menu]
+    #name = "command"
+    say-hi = "echo 'Hello, world!'"
+
+    #name = { run = "command", group = <number> }
+    first = { run = "echo 'first!'", group = 1 }
+
+    [config]
+    dmenu.prompt = "example:"
+"#;
+
 fn main() {
     let result = run();
     report_errors(&result);
@@ -56,10 +68,19 @@ fn parse_args() -> ArgMatches {
             "\n",
             "The toml config may be piped in instead of specifying a file path.",
         ))
-        .after_help("Use `-h` for short descriptions, or `--help` for more detail.")
+        .after_help(
+            format!(
+                "{}\n    ```\n{}    ```\n\n{}",
+                "CONFIG:".yellow(),
+                SHORT_EXAMPLE,
+                "Use `-h` for short descriptions, or `--help` for more detail."
+            )
+            .as_str(),
+        )
         .after_long_help(
             format!(
-                "```\n{}```\n\n{}",
+                "{}\n    ```\n{}    ```\n\n{}",
+                "CONFIG:".yellow(),
                 include_str!("../example.toml"),
                 "Use `-h` for short descriptions, or `--help` for more detail."
             )

@@ -11,9 +11,8 @@ Below is a minimal configuration.
 [menu]
 #name = "command"
 say-hi = "echo 'Hello, world!'"
+#name = { run = "command", group = <number> }
 first = { run = "echo first", group = 1 }
-browser = "firefox"
-music = "vlc ~/music"
 
 [config]
 dmenu.prompt = "example:"
