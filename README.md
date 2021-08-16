@@ -27,5 +27,9 @@ distribute this software, either in source code form or as a compiled
 binary, for any purpose, commercial or non-commercial, and by any
 means.
 
-Read the full license in the [UNLICENSE](./UNLICENSE) file.
+Read the entire unlicense in the [unlicense file](./UNLICENSE).
 For more information, please refer to <http://unlicense.org/>
+
+## Contribution
+Any contribution intentionally submitted by you
+for inclusion in the software shall be unlicensed.
