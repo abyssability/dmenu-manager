@@ -28,7 +28,7 @@ binary, for any purpose, commercial or non-commercial, and by any
 means.
 
 Read the entire unlicense in the [unlicense file](./UNLICENSE).  
-For more information, please refer to <http://unlicense.org/>
+For more information, please refer to <http://unlicense.org/>.
 
 ## Contribution
 Any contribution intentionally submitted by you
