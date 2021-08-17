@@ -29,16 +29,17 @@ const SHORT_EXAMPLE: &str = r#"    # short example config; see `--help` for more
 "#;
 
 fn main() {
-    let result = run();
-    report_errors(&result);
+    let maybe_err = run();
+
+    if let Err(err) = maybe_err {
+        report_errors(&err);
+    }
 }
 
-fn report_errors(result: &anyhow::Result<()>) {
-    if let Err(err) = result {
-        let header = "Error".red().bold();
-        eprintln!("{}: {:#}.", header, err);
-        process::exit(1);
-    }
+fn report_errors(err: &anyhow::Error) {
+    let header = "Error".red().bold();
+    eprintln!("{}: {:#}.", header, err);
+    process::exit(1);
 }
 
 fn run() -> anyhow::Result<()> {
@@ -48,11 +49,11 @@ fn run() -> anyhow::Result<()> {
     } else {
         read_stdin()?
     };
-    let mut menu = Menu::try_new(&config)?;
+    let menu = Menu::try_new(&config)?;
     let commands = if menu.config.numbered {
-        get_command_choice::<Decimal>(&mut menu)?
+        get_command_choice::<Decimal>(&menu)?
     } else {
-        get_command_choice::<Ternary>(&mut menu)?
+        get_command_choice::<Ternary>(&menu)?
     };
     run_command(&commands, &menu.config.shell)?;
     Ok(())
@@ -92,7 +93,8 @@ fn parse_args() -> ArgMatches {
                 .about("Path to the target toml config file")
                 .long_about(
                     "Path to the target toml config file.\n\
-                    Optional if piping config through stdin.",
+                    Required unless piping config through stdin.\n\
+                    If set, anything sent through stdin is ignored.",
                 )
                 .index(1)
                 .pipe(|arg| {
@@ -118,7 +120,7 @@ fn read_stdin() -> anyhow::Result<String> {
     Ok(buf)
 }
 
-fn get_command_choice<T: Tag>(menu: &mut Menu) -> anyhow::Result<Vec<String>> {
+fn get_command_choice<T: Tag>(menu: &Menu) -> anyhow::Result<Vec<String>> {
     let entries = construct_entries::<T>(menu);
     let dmenu_args = menu.config.dmenu.args();
     let raw_choice = run_dmenu(entries, &dmenu_args)?;
@@ -174,7 +176,7 @@ fn run_dmenu(entries: String, dmenu_args: &[String]) -> anyhow::Result<String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .context("failed to spawn dmenu")?;
+        .context("failed to run `dmenu` (is it installed and in your `PATH`?)")?;
     let mut stdin = dmenu
         .stdin
         .take()
