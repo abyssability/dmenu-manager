@@ -1,5 +1,5 @@
     #    example toml config, not default
-    #    See the toml website, `https://toml.io`, for more info.
+    #    See the toml website, <https://toml.io/>, for more info.
 
     #  `entries` is an array of values.
     #  The run value will be used both as a name and command.
