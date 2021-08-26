@@ -18,10 +18,10 @@ pub mod tag;
 
 const SHORT_EXAMPLE: &str = r#"    # short example config; see `--help` for more info
     [menu]
-    #name = "command"
+    # name = "command"
     say-hi = "echo 'Hello, world!'"
 
-    #name = { run = "command", group = <number> }
+    # name = { run = "command", group = <number> }
     first = { run = "echo 'first!'", group = 1 }
 
     [config]

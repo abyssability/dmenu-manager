@@ -9,9 +9,9 @@ Below is a minimal configuration.
 ``` toml
 # ~/dmenu.toml
 [menu]
-#name = "command"
+# name = "command"
 say-hi = "echo 'Hello, world!'"
-#name = { run = "command", group = <number> }
+# name = { run = "command", group = <number> }
 first = { run = "echo first", group = 1 }
 
 [config]
