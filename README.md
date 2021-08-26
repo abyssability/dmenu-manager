@@ -28,7 +28,3 @@ means.
 
 Read the entire unlicense in the [unlicense file](./UNLICENSE).  
 For more information, please refer to <https://unlicense.org/>.
-
-## Contribution
-Any contribution intentionally submitted for inclusion in the
-software shall be unlicensed without any terms or conditions.
