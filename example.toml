@@ -26,8 +26,8 @@
     "space separated name" = { run = "echo 'why?'", group = 1 }
     #  Triple quotes are multi-line strings.
     small-script = """
-    ls | shuf
-    firefox & disown
+    ls -la | count > file-count.tmp
+    firefox
     """
 
     [menu."most important"]
@@ -73,8 +73,8 @@
     #  Make dmenu match menu entries case sensitively while searching.
     case-sensitive = true
     #  Make dmenu list items vertically using multiple lines.
-    lines = 8
+    lines = 5
     #  Make dmenu display on a different monitor.
-    monitor = 0
+    #monitor = 0
     #  Make dmenu embed into `window-id`.
     #window-id = "0"
