@@ -76,7 +76,7 @@ fn parse_args() -> ArgMatches {
         ))
         .after_help(
             format!(
-                "{}\n    ```\n{}    ```\n\n{}",
+                "{}\n{}\n\n{}",
                 "CONFIG:".yellow(),
                 SHORT_EXAMPLE,
                 HELP_FOOTER
@@ -85,7 +85,7 @@ fn parse_args() -> ArgMatches {
         )
         .after_long_help(
             format!(
-                "{}\n    ```\n{}    ```\n\n{}",
+                "{}\n{}\n\n{}",
                 "CONFIG:".yellow(),
                 include_str!("../example.toml"),
                 HELP_FOOTER
