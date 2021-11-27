@@ -1,7 +1,7 @@
 [package]
 name = "dmenu-manager"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 authors = ["Abyss <abyssability@pm.me>"]
 description = "Dmenu wrapper allowing the use of a toml file to configure dmenu."
 license = "Unlicense"
