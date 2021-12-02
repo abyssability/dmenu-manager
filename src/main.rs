@@ -195,15 +195,16 @@ fn run_dmenu(entries: String, dmenu_args: &[String]) -> anyhow::Result<String> {
 }
 
 fn run_command(commands: &[String], shell: &str) -> anyhow::Result<()> {
-    let mut shell_command = Command::new(shell);
-    let shell_command = shell_command.arg("-c");
-
     for command in commands {
-        shell_command.arg(command).spawn().context(format!(
-            "failed to execute command `{}` (is the shell `{}` installed?)",
-            command.bold(),
-            shell.bold(),
-        ))?;
+        Command::new(shell)
+            .arg("-c")
+            .arg(command)
+            .spawn()
+            .context(format!(
+                "failed to execute command `{}` (is the shell `{}` installed?)",
+                command.bold(),
+                shell.bold(),
+            ))?;
     }
     Ok(())
 }
