@@ -94,8 +94,8 @@ fn parse_args() -> ArgMatches {
         )
         .arg({
             let arg = Arg::new("CONFIG")
-                .about("Path to the target toml config file")
-                .long_about(
+                .help("Path to the target toml config file")
+                .long_help(
                     "Path to the target toml config file.\n\
                     Required unless piping config through stdin.\n\
                     If set, anything sent through stdin is ignored.",
