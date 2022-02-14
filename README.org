@@ -1,12 +1,15 @@
-# Dmenu Manager
+#+title: Dmenu Manager
 
 Dmenu wrapper allowing the use of a toml file to configure dmenu.
 
-See the [example config](./example.toml) for a full explanation of the config options.  
+See the [[file:example.toml][example config]] for a full explanation of the config options.  
 Below is a minimal configuration.
 
-`$ dmenu-manager ~/dmenu.toml`
-``` toml
+#+begin_src sh
+dmenu-manager ~/dmenu.toml
+#+end_src
+
+#+begin_src toml
 # ~/dmenu.toml
 [menu]
 # name = "command"
@@ -16,9 +19,9 @@ first = { run = "echo first", group = 1 }
 
 [config]
 dmenu.prompt = "example:"
-```
+#+end_src
 
-## Unlicense
+* Unlicense
 This is free and unencumbered software released into the public domain.
 
 Anyone is free to copy, modify, publish, use, compile, sell, or
@@ -26,5 +29,5 @@ distribute this software, either in source code form or as a compiled
 binary, for any purpose, commercial or non-commercial, and by any
 means.
 
-Read the entire unlicense in the [unlicense file](./UNLICENSE).  
-For more information, please refer to <https://unlicense.org/>.
+Read the entire unlicense in the [[file:UNLICENSE][unlicense file]].  
+For more information, please refer to [[https://unlicense.org/]].

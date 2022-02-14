@@ -87,7 +87,7 @@ fn parse_args() -> ArgMatches {
             format!(
                 "{}\n{}\n\n{}",
                 "CONFIG:".yellow(),
-                include_str!("../example.toml"),
+                include_str!("../EXAMPLE.toml"),
                 HELP_FOOTER
             )
             .as_str(),
