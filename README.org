@@ -2,7 +2,7 @@
 
 Dmenu wrapper allowing the use of a toml file to configure dmenu.
 
-See the [[file:example.toml][example config]] for a full explanation of the config options.  
+See the [[file:EXAMPLE.toml][example config]] for a full explanation of the config options.  
 Below is a minimal configuration.
 
 #+begin_src sh
