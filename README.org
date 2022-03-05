@@ -11,6 +11,7 @@ dmenu-manager ~/dmenu.toml
 
 #+begin_src toml
 # ~/dmenu.toml
+
 [menu]
 # name = "command"
 say-hi = "echo 'Hello, world!'"
@@ -21,13 +22,7 @@ first = { run = "echo first", group = 1 }
 dmenu.prompt = "example:"
 #+end_src
 
-* Unlicense
-This is free and unencumbered software released into the public domain.
+* License
+This software is dedicated to the public domain under the [[https://creativecommons.org/publicdomain/zero/1.0/][Creative Commons Zero]].
 
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
-
-Read the entire unlicense in the [[file:UNLICENSE][unlicense file]].  
-For more information, please refer to [[https://unlicense.org/]].
+Read the entire CC0 in the [[file:LICENSE][LICENSE file]], or at the [[https://creativecommons.org/publicdomain/zero/1.0/legalcode][Creative Commons website]].
