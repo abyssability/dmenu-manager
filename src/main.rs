@@ -4,7 +4,7 @@ use std::{env, fs, panic, thread};
 
 use anyhow::Context;
 use atty::Stream;
-use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg, ArgMatches};
+use clap::{command, crate_description, Arg, ArgMatches};
 use owo_colors::OwoColorize;
 
 use config::Menu;
@@ -65,10 +65,7 @@ fn run() -> anyhow::Result<()> {
 }
 
 fn parse_args() -> ArgMatches {
-    App::new(crate_name!())
-        .version(crate_version!())
-        .author(crate_authors!())
-        .about(crate_description!())
+    command!()
         .long_about(concat!(
             crate_description!(),
             "\n",
