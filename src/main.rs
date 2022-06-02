@@ -3,15 +3,15 @@ use std::process::{self, Command, Stdio};
 use std::{env, fs, panic, thread};
 
 use anyhow::Context;
-use atty::Stream;
 use clap::{command, crate_description, Arg, ArgMatches};
+use is_terminal::IsTerminal;
 use owo_colors::OwoColorize;
 
 use config::Menu;
 use tag::{Decimal, Tag, Ternary};
 
-pub mod config;
-pub mod tag;
+mod config;
+mod tag;
 
 static SHORT_EXAMPLE: &str = r#"    # short example config; see `--help` for more info
     [menu]
@@ -98,7 +98,7 @@ fn parse_args() -> ArgMatches {
                     If set, anything sent through stdin is ignored.",
                 )
                 .index(1);
-            if atty::is(Stream::Stdin) {
+            if io::stdin().is_terminal() {
                 arg.required(true)
             } else {
                 arg
