@@ -5,7 +5,7 @@ use std::{env, fs, panic, thread};
 use anyhow::Context;
 use clap::{command, crate_description, Arg, ArgMatches};
 use is_terminal::IsTerminal;
-use owo_colors::OwoColorize;
+use owo_colors::{OwoColorize, Stream};
 
 use config::Menu;
 use tag::{Binary, Decimal, Tag};
@@ -39,10 +39,19 @@ fn report_errors(err: &anyhow::Error) {
     let mut chain = err.chain();
     let err = chain.next().unwrap_or_else(|| unreachable!());
 
-    eprintln!("{} {}", "error:".red().bold(), err);
+    eprintln!(
+        "{} {err}",
+        "error:"
+            .if_supports_color(Stream::Stderr, |x| x.red())
+            .if_supports_color(Stream::Stderr, |x| x.bold()),
+    );
 
     for err in chain {
-        eprintln!("  {} {}", "-".yellow().bold(), err);
+        eprintln!(
+            "  {} {err}",
+            "-".if_supports_color(Stream::Stderr, |x| x.yellow())
+                .if_supports_color(Stream::Stderr, |x| x.bold()),
+        );
     }
 }
 
@@ -74,7 +83,7 @@ fn parse_args() -> ArgMatches {
         .after_help(
             format!(
                 "{}\n{}\n\n{}",
-                "CONFIG:".yellow(),
+                "CONFIG:".if_supports_color(Stream::Stderr, |x| x.yellow()),
                 SHORT_EXAMPLE,
                 HELP_FOOTER
             )
@@ -83,7 +92,7 @@ fn parse_args() -> ArgMatches {
         .after_long_help(
             format!(
                 "{}\n{}\n\n{}",
-                "CONFIG:".yellow(),
+                "CONFIG:".if_supports_color(Stream::Stderr, |x| x.yellow()),
                 include_str!("../EXAMPLE.toml"),
                 HELP_FOOTER
             )
@@ -104,11 +113,15 @@ fn parse_args() -> ArgMatches {
                 arg
             }
         })
+        .next_help_heading("CONFIG")
         .get_matches()
 }
 
 fn read_file(path: &str) -> anyhow::Result<String> {
-    fs::read_to_string(path).context(format!("can't read config file `{}`", path.bold()))
+    fs::read_to_string(path).context(format!(
+        "can't read config file `{}`",
+        path.if_supports_color(Stream::Stderr, |x| x.bold()),
+    ))
 }
 
 fn read_stdin() -> anyhow::Result<String> {
@@ -199,8 +212,8 @@ fn run_command(commands: &[String], shell: &str) -> anyhow::Result<()> {
             .spawn()
             .context(format!(
                 "failed to execute command `{}` (is the shell `{}` installed?)",
-                command.bold(),
-                shell.bold(),
+                command.if_supports_color(Stream::Stderr, |x| x.bold()),
+                shell.if_supports_color(Stream::Stderr, |x| x.bold()),
             ))?;
     }
     Ok(())
