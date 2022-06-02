@@ -1,16 +1,13 @@
 use std::iter;
 
-/// `Pop directional isolate` character.
-pub const SEPARATOR: char = '\u{2069}';
-
 /// `Zero width space` character.
 pub const ZERO: char = '\u{200b}';
 /// `Zero width non joiner` character.
 pub const ONE: char = '\u{200c}';
 /// `Zero width joiner` character.
-pub const TWO: char = '\u{200d}';
+pub const SEPARATOR: char = '\u{200d}';
 
-const TERNARY: &[char] = &[ZERO, ONE, TWO];
+const BINARY: &[char] = &[ZERO, ONE];
 const DECIMAL: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 pub trait Tag {
@@ -26,40 +23,38 @@ pub trait Tag {
     }
 }
 
-/// Ternary encoded zero-width spaces, joiners, and non-joiners.
-pub struct Ternary(String);
+/// Binary encoded zero-width spaces, joiners, and non-joiners.
+pub struct Binary(String);
 
-impl Tag for Ternary {
+impl Tag for Binary {
     fn new(num: usize) -> Self {
-        let ternary = format!("{}", radix_fmt::radix_3(num));
-        let ternary = ternary.chars().map(|c| match c {
+        let binary = format!("{:b}", num);
+        let binary = binary.chars().map(|c| match c {
             '0' => ZERO,
             '1' => ONE,
-            '2' => TWO,
             _ => unreachable!(),
         });
-        let ternary = iter::once(SEPARATOR)
-            .chain(ternary)
+        let binary = iter::once(SEPARATOR)
+            .chain(binary)
             .chain(iter::once(SEPARATOR))
             .collect::<String>();
 
-        Self(ternary)
+        Self(binary)
     }
 
     fn value(&self) -> usize {
-        let ternary = self
+        let binary = self
             .0
             .trim_matches(SEPARATOR)
             .chars()
             .map(|c| match c {
                 ZERO => '0',
                 ONE => '1',
-                TWO => '2',
                 _ => unreachable!(),
             })
             .collect::<String>();
 
-        usize::from_str_radix(ternary.as_str(), 3).expect("unreachable")
+        usize::from_str_radix(binary.as_str(), 2).expect("unreachable")
     }
 
     fn find(string: &str) -> Option<Self> {
@@ -68,7 +63,7 @@ impl Tag for Ternary {
         } else if let Some(first_separator) = string.find(SEPARATOR) {
             let string = &string[first_separator..];
 
-            let tag = find_tag(string, TERNARY);
+            let tag = find_tag(string, BINARY);
 
             tag.map(|tag| Self(String::from(tag)))
         } else {
@@ -86,7 +81,7 @@ pub struct Decimal(String);
 
 impl Tag for Decimal {
     fn new(num: usize) -> Self {
-        let decimal = format!("{1}{0}{1}", num, SEPARATOR);
+        let decimal = format!("{SEPARATOR}{num}{SEPARATOR}");
 
         Self(decimal)
     }

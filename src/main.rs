@@ -8,7 +8,7 @@ use is_terminal::IsTerminal;
 use owo_colors::OwoColorize;
 
 use config::Menu;
-use tag::{Decimal, Tag, Ternary};
+use tag::{Binary, Decimal, Tag};
 
 mod config;
 mod tag;
@@ -57,7 +57,7 @@ fn run() -> anyhow::Result<()> {
     let commands = if menu.config.numbered {
         get_command_choice::<Decimal>(&menu)
     } else {
-        get_command_choice::<Ternary>(&menu)
+        get_command_choice::<Binary>(&menu)
     }
     .context("failed to get menu selection")?;
     run_command(&commands, &menu.config.shell)?;
