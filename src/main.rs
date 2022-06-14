@@ -64,9 +64,9 @@ fn run() -> anyhow::Result<()> {
     };
     let menu = Menu::try_new(&config)?;
     let commands = if menu.config.numbered {
-        get_command_choice::<Decimal>(&menu)
+        get_commands::<Decimal>(&menu)
     } else {
-        get_command_choice::<Binary>(&menu)
+        get_commands::<Binary>(&menu)
     }
     .context("failed to get menu selection")?;
     run_command(&commands, &menu.config.shell)?;
@@ -132,7 +132,7 @@ fn read_stdin() -> anyhow::Result<String> {
     Ok(buf)
 }
 
-fn get_command_choice<T: Tag>(menu: &Menu) -> anyhow::Result<Vec<String>> {
+fn get_commands<T: Tag>(menu: &Menu) -> anyhow::Result<Vec<String>> {
     let entries = construct_entries::<T>(menu);
     let dmenu_args = menu.config.dmenu.args();
     let raw_choice = run_dmenu(entries, &dmenu_args)?;
@@ -141,10 +141,9 @@ fn get_command_choice<T: Tag>(menu: &Menu) -> anyhow::Result<Vec<String>> {
         .map(str::trim)
         .filter(|choice| !choice.is_empty())
         .map(|choice| {
-            let tag = T::find(choice);
+            let tag = T::pop_tag(choice).map(|(tag, _)| tag);
 
-            if let Some(tag) = tag {
-                let id = tag.value();
+            if let Some(id) = tag {
                 Ok(menu.entries[id].run.clone())
             } else if menu.config.ad_hoc {
                 Ok(String::from(choice))
@@ -165,7 +164,7 @@ fn construct_entries<T: Tag>(menu: &Menu) -> String {
     let mut entries = String::new();
 
     for (i, entry) in menu.entries.iter().enumerate() {
-        entries.push_str(T::new(i).as_str());
+        T::push_tag(i, &mut entries);
         if let Some(separator) = separator {
             entries.push_str(separator);
         }

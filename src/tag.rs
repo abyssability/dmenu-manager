@@ -1,23 +1,47 @@
-use std::iter;
+use std::{cell::RefCell, fmt::Write, iter};
 
 /// `Zero width space` character.
-pub const ZERO: char = '\u{200b}';
+const ZERO: char = '\u{200b}';
 /// `Zero width non joiner` character.
-pub const ONE: char = '\u{200c}';
+const ONE: char = '\u{200c}';
 /// `Zero width joiner` character.
-pub const SEPARATOR: char = '\u{200d}';
+const SEP: char = '\u{200d}';
+const SEP_LEN: usize = SEP.len_utf8();
 
 const BINARY: &[char] = &[ZERO, ONE];
 const DECIMAL: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
+thread_local! {
+    static BUF: RefCell<String> =
+        String::with_capacity(usize::BITS.try_into().expect("unreachable")).into();
+}
+
+macro_rules! with_buf {
+    ($buf:ident, $($t:tt)*) => {
+        BUF.with(|cell| {
+            let mut $buf = cell.borrow_mut();
+            $buf.clear();
+            $($t)*
+        })
+    };
+}
+
 pub trait Tag {
-    fn new(num: usize) -> Self;
-    fn value(&self) -> usize;
-    fn as_str(&self) -> &str;
-    /// Return the first tag (if any).
-    fn find(string: &str) -> Option<Self>
-    where
-        Self: Sized;
+    fn push_tag(num: usize, out: &mut String);
+    fn convert_tag(tag: &str) -> Option<usize>;
+
+    fn pop_tag(string: &str) -> Option<(usize, &str)> {
+        string.find(SEP).and_then(|first_sep| {
+            let string = &string[first_sep + SEP_LEN..];
+            string.find(SEP).and_then(|second_sep| {
+                let tag = &string[..second_sep];
+                let tag = Self::convert_tag(tag);
+                let string = &string[second_sep + SEP_LEN..];
+                tag.map(|tag| (tag, string))
+            })
+        })
+    }
+
     fn separator() -> Option<&'static str> {
         None
     }
@@ -27,52 +51,36 @@ pub trait Tag {
 pub struct Binary(String);
 
 impl Tag for Binary {
-    fn new(num: usize) -> Self {
-        let binary = format!("{:b}", num);
-        let binary = binary.chars().map(|c| match c {
-            '0' => ZERO,
-            '1' => ONE,
-            _ => unreachable!(),
-        });
-        let binary = iter::once(SEPARATOR)
-            .chain(binary)
-            .chain(iter::once(SEPARATOR))
-            .collect::<String>();
-
-        Self(binary)
-    }
-
-    fn value(&self) -> usize {
-        let binary = self
-            .0
-            .trim_matches(SEPARATOR)
-            .chars()
-            .map(|c| match c {
-                ZERO => '0',
-                ONE => '1',
+    fn push_tag(num: usize, out: &mut String) {
+        with_buf! {buf,
+            write!(buf, "{num:b}").expect("formatting error");
+            let binary = buf.chars().map(|c| match c {
+                '0' => ZERO,
+                '1' => ONE,
                 _ => unreachable!(),
-            })
-            .collect::<String>();
+            });
+            let binary = iter::once(SEP).chain(binary).chain(iter::once(SEP));
 
-        usize::from_str_radix(binary.as_str(), 2).expect("unreachable")
-    }
-
-    fn find(string: &str) -> Option<Self> {
-        if string.is_empty() {
-            None
-        } else if let Some(first_separator) = string.find(SEPARATOR) {
-            let string = &string[first_separator..];
-
-            let tag = find_tag(string, BINARY);
-
-            tag.map(|tag| Self(String::from(tag)))
-        } else {
-            None
+            out.extend(binary)
         }
     }
 
-    fn as_str(&self) -> &str {
-        &self.0
+    fn convert_tag(tag: &str) -> Option<usize> {
+        tag.chars()
+            .all(|c| BINARY.contains(&c))
+            .then(|| {
+                let binary = tag.chars().map(|c| match c {
+                    ZERO => '0',
+                    ONE => '1',
+                    _ => unreachable!(),
+                });
+
+                with_buf! {buf,
+                    buf.extend(binary);
+                    usize::from_str_radix(buf.as_str(), 2).ok()
+                }
+            })
+            .flatten()
     }
 }
 
@@ -80,79 +88,18 @@ impl Tag for Binary {
 pub struct Decimal(String);
 
 impl Tag for Decimal {
-    fn new(num: usize) -> Self {
-        let decimal = format!("{SEPARATOR}{num}{SEPARATOR}");
-
-        Self(decimal)
+    fn push_tag(num: usize, out: &mut String) {
+        write!(*out, "{SEP}{num}{SEP}").expect("formatting error");
     }
 
-    fn value(&self) -> usize {
-        let decimal = self.0.as_str().trim_matches(SEPARATOR);
-
-        decimal.parse::<usize>().expect("unreachable")
-    }
-
-    fn find(string: &str) -> Option<Self> {
-        if string.is_empty() {
-            None
-        } else if let Some(first_separator) = string.find(SEPARATOR) {
-            let string = &string[first_separator..];
-
-            let tag = find_tag(string, DECIMAL);
-
-            tag.map(|tag| Self(String::from(tag)))
-        } else {
-            None
-        }
-    }
-
-    fn as_str(&self) -> &str {
-        &self.0
+    fn convert_tag(tag: &str) -> Option<usize> {
+        tag.chars()
+            .all(|c| DECIMAL.contains(&c))
+            .then(|| tag.parse().ok())
+            .flatten()
     }
 
     fn separator() -> Option<&'static str> {
         Some(": ")
-    }
-}
-
-fn char_matches(c: char, matches: &[char]) -> bool {
-    for &m in matches.iter() {
-        if c == m {
-            return true;
-        }
-    }
-
-    false
-}
-
-fn find_tag<'a>(string: &'a str, valid_chars: &[char]) -> Option<&'a str> {
-    enum State {
-        Mismatch,
-        Separator(usize),
-        Match(usize),
-        Close(usize),
-        Found(usize, usize),
-    }
-
-    let mut state = State::Mismatch;
-    for (i, c) in string.char_indices() {
-        state = match (state, c) {
-            (State::Match(start) | State::Separator(start), c) if char_matches(c, valid_chars) => {
-                State::Match(start)
-            }
-            (State::Close(start), _) => {
-                state = State::Found(start, i);
-                break;
-            }
-            (State::Mismatch | State::Separator(_), SEPARATOR) => State::Separator(i),
-            (State::Match(start), SEPARATOR) => State::Close(start),
-            _ => State::Mismatch,
-        };
-    }
-
-    match state {
-        State::Found(start, end) => Some(&string[start..end]),
-        State::Close(start) => Some(&string[start..]),
-        _ => None,
     }
 }
