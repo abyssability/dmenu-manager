@@ -57,8 +57,8 @@ fn report_errors(err: &anyhow::Error) {
 
 fn run() -> anyhow::Result<()> {
     let args = parse_args();
-    let config = if let Some(path) = args.value_of("CONFIG") {
-        read_file(path)?
+    let config = if let Some(path) = args.get_one::<String>("CONFIG") {
+        read_file(path.as_str())?
     } else {
         read_stdin()?
     };
