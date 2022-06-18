@@ -42,15 +42,15 @@ fn report_errors(err: &anyhow::Error) {
     eprintln!(
         "{} {err}",
         "error:"
-            .if_supports_color(Stream::Stderr, |x| x.red())
-            .if_supports_color(Stream::Stderr, |x| x.bold()),
+            .if_supports_color(Stream::Stderr, OwoColorize::red)
+            .if_supports_color(Stream::Stderr, OwoColorize::bold),
     );
 
     for err in chain {
         eprintln!(
             "  {} {err}",
-            "-".if_supports_color(Stream::Stderr, |x| x.yellow())
-                .if_supports_color(Stream::Stderr, |x| x.bold()),
+            "-".if_supports_color(Stream::Stderr, OwoColorize::yellow)
+                .if_supports_color(Stream::Stderr, OwoColorize::bold),
         );
     }
 }
@@ -62,14 +62,16 @@ fn run() -> anyhow::Result<()> {
     } else {
         read_stdin()?
     };
+
     let menu = Menu::try_new(&config)?;
     let commands = if menu.config.numbered {
-        get_commands::<Decimal>(&menu)
+        get_commands::<Decimal>(&menu)?
     } else {
-        get_commands::<Binary>(&menu)
-    }
-    .context("failed to get menu selection")?;
+        get_commands::<Binary>(&menu)?
+    };
+
     run_command(&commands, &menu.config.shell)?;
+
     Ok(())
 }
 
@@ -83,7 +85,7 @@ fn parse_args() -> ArgMatches {
         .after_help(
             format!(
                 "{}\n{}\n\n{}",
-                "CONFIG:".if_supports_color(Stream::Stderr, |x| x.yellow()),
+                "CONFIG:".if_supports_color(Stream::Stderr, OwoColorize::yellow),
                 SHORT_EXAMPLE,
                 HELP_FOOTER
             )
@@ -92,7 +94,7 @@ fn parse_args() -> ArgMatches {
         .after_long_help(
             format!(
                 "{}\n{}\n\n{}",
-                "CONFIG:".if_supports_color(Stream::Stderr, |x| x.yellow()),
+                "CONFIG:".if_supports_color(Stream::Stderr, OwoColorize::yellow),
                 include_str!("../EXAMPLE.toml"),
                 HELP_FOOTER
             )
@@ -107,20 +109,20 @@ fn parse_args() -> ArgMatches {
                     If set, anything sent through stdin is ignored.",
                 )
                 .index(1);
+
             if io::stdin().is_terminal() {
                 arg.required(true)
             } else {
                 arg
             }
         })
-        .next_help_heading("CONFIG")
         .get_matches()
 }
 
 fn read_file(path: &str) -> anyhow::Result<String> {
     fs::read_to_string(path).context(format!(
         "can't read config file `{}`",
-        path.if_supports_color(Stream::Stderr, |x| x.bold()),
+        path.if_supports_color(Stream::Stderr, OwoColorize::bold),
     ))
 }
 
@@ -135,7 +137,7 @@ fn read_stdin() -> anyhow::Result<String> {
 fn get_commands<T: Tag>(menu: &Menu) -> anyhow::Result<Vec<String>> {
     let entries = construct_entries::<T>(menu);
     let dmenu_args = menu.config.dmenu.args();
-    let raw_choice = run_dmenu(entries, &dmenu_args)?;
+    let raw_choice = run_dmenu(entries, &dmenu_args).context("can't run dmenu")?;
     let choices = raw_choice.trim().split('\n');
     let commands = choices
         .map(str::trim)
@@ -211,8 +213,8 @@ fn run_command(commands: &[String], shell: &str) -> anyhow::Result<()> {
             .spawn()
             .context(format!(
                 "failed to execute command `{}` (is the shell `{}` installed?)",
-                command.if_supports_color(Stream::Stderr, |x| x.bold()),
-                shell.if_supports_color(Stream::Stderr, |x| x.bold()),
+                command.if_supports_color(Stream::Stderr, OwoColorize::bold),
+                shell.if_supports_color(Stream::Stderr, OwoColorize::bold),
             ))?;
     }
     Ok(())
