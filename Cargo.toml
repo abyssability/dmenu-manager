@@ -2,7 +2,7 @@
 name = "dmenu-manager"
 version = "0.1.0"
 edition = "2021"
-authors = ["Abyss <abyssability@pm.me>"]
+authors = ["Abysss <abysssol@pm.me>"]
 description = "Dmenu wrapper allowing configuration with a toml file"
 license = "CC0-1.0"
 readme = "README.md"
