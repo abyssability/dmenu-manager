@@ -1,35 +1,37 @@
-use std::{cell::RefCell, fmt::Write, iter};
+use std::{cell::RefCell, fmt::Write};
 
 /// `Zero width space` character.
 const ZERO: char = '\u{200b}';
-/// `Zero width non joiner` character.
-const ONE: char = '\u{200c}';
 /// `Zero width joiner` character.
-const SEP: char = '\u{200d}';
+const ONE: char = '\u{200d}';
+/// `Zero width non joiner` character.
+const SEP: char = '\u{200c}';
 const SEP_LEN: usize = SEP.len_utf8();
 
-const BINARY: &[char] = &[ZERO, ONE];
-const DECIMAL: &[char] = &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-
 thread_local! {
+    /// Persistant [`String`] buffer to minimize allocations.
     static BUF: RefCell<String> =
         String::with_capacity(usize::BITS.try_into().expect("unreachable")).into();
 }
 
 macro_rules! with_buf {
     ($buf:ident, $($t:tt)*) => {
-        BUF.with(|cell| {
-            let mut $buf = cell.borrow_mut();
+        BUF.with(|buf| {
+            let mut $buf = buf.borrow_mut();
             $buf.clear();
             $($t)*
         })
     };
 }
 
+/// Convert a number to a string tag, and convert that tag back to its numeric value.
 pub trait Tag {
+    /// Convert a number to a tag that is pushed onto the provided [`String`].
     fn push_tag(num: usize, out: &mut String);
+    /// Convert the provided tag to its value as a [`usize`].
     fn convert_tag(tag: &str) -> Option<usize>;
 
+    /// Find the first tag, returning it and the part of the string after the tag.
     fn pop_tag(string: &str) -> Option<(usize, &str)> {
         string.find(SEP).and_then(|first_sep| {
             let string = &string[first_sep + SEP_LEN..];
@@ -42,61 +44,62 @@ pub trait Tag {
         })
     }
 
+    /// Default separator to append to the tag.
     fn separator() -> Option<&'static str> {
         None
     }
 }
 
-/// Binary encoded zero-width spaces, joiners, and non-joiners.
+/// Binary encoded zero-width spaces and non-joiners.
 pub struct Binary(String);
 
 impl Tag for Binary {
     fn push_tag(num: usize, out: &mut String) {
         with_buf! {buf,
-            write!(buf, "{num:b}").expect("formatting error");
+            write!(buf, "{SEP}{num:b}{SEP}").expect("writing tag to buffer");
             let binary = buf.chars().map(|c| match c {
                 '0' => ZERO,
                 '1' => ONE,
+                SEP => SEP,
                 _ => unreachable!(),
             });
-            let binary = iter::once(SEP).chain(binary).chain(iter::once(SEP));
 
             out.extend(binary)
         }
     }
 
     fn convert_tag(tag: &str) -> Option<usize> {
-        tag.chars()
-            .all(|c| BINARY.contains(&c))
-            .then(|| {
-                let binary = tag.chars().map(|c| match c {
-                    ZERO => '0',
-                    ONE => '1',
-                    _ => unreachable!(),
-                });
+        let tag = tag.trim_matches(SEP);
 
-                with_buf! {buf,
-                    buf.extend(binary);
-                    usize::from_str_radix(buf.as_str(), 2).ok()
+        with_buf! {buf,
+            let mut valid = true;
+            let binary = tag.chars().map_while(|c| match c {
+                ZERO => Some('0'),
+                ONE => Some('1'),
+                _ => {
+                    valid = false;
+                    None
                 }
-            })
-            .flatten()
+            });
+            buf.extend(binary);
+
+            valid.then(|| usize::from_str_radix(&buf, 2).ok()).flatten()
+        }
     }
 }
 
-/// Decimal encoded numeric tag.
+/// Decimal encoded ascii numeric tag.
 pub struct Decimal(String);
 
 impl Tag for Decimal {
     fn push_tag(num: usize, out: &mut String) {
-        write!(*out, "{SEP}{num}{SEP}").expect("formatting error");
+        write!(*out, "{SEP}{num}{SEP}").expect("writing tag to buffer");
     }
 
     fn convert_tag(tag: &str) -> Option<usize> {
-        tag.chars()
-            .all(|c| DECIMAL.contains(&c))
-            .then(|| tag.parse().ok())
-            .flatten()
+        let tag = tag.trim_matches(SEP);
+
+        tag.parse().ok()
     }
 
     fn separator() -> Option<&'static str> {
