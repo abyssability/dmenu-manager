@@ -1,4 +1,4 @@
-#+title: Dmenu Manager
+#+title: DMM -- DMenu Manager
 
 Dmenu wrapper allowing the use of a toml file to configure dmenu.
 
@@ -6,7 +6,7 @@ See the [[file:EXAMPLE.toml][example config]] for a full explanation of the conf
 Below is a minimal configuration.
 
 #+begin_src sh
-dmenu-manager ~/dmenu.toml
+dmm ~/dmenu.toml
 #+end_src
 
 #+begin_src toml

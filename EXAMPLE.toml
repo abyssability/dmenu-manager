@@ -1,25 +1,21 @@
-    #    See the toml website, [[https://toml.io/]], for more info on the toml format.
+    #    See the toml website, [[https://toml.io/]], for more info on the toml format
     #    example config, not default
 
-    #  `entries` is an array of values.
-    #  The run value will be used both as a name and command.
+    #  `entries` is an array of values
+    #  A valid value can be a single string or a table
     entries = [
-        #  A valid value can be a single string or a table;
-        #  a string will be interpreted as a run value.
+        #  a string will be interpreted as a command to run
         "name and command",
-        #  The table can contain a run value (the command to run)
-        #  and a group value, which all names are ordered by
-        #  before being displayed; the default group is `0` (zero).
-        #  Larger groups are displayed first, negative groups are last.
+        #  run: the command to run, also used as its name in the menu
+        #  group: all items are ordered by group; the default group is `0` (zero)
+        #  Larger groups are displayed first, negative groups are last
         { run = "command and name", group = 5 },
         { run = "last", group = -100 },
-        #  The only required table value is `run`.
-        { run = "table with only run" },
     ]
 
     #  `menu` is a table of name-value pairs.
-    #  The name will be displayed;
-    #  if selected, the run value will be executed.
+    #  The name will be displayed by dmenu;
+    #  if selected, the command will be executed.
     [menu]
     name = "command to run"
     #  The name can be quoted to allow spaces (and more) in names.
@@ -46,10 +42,10 @@
     shell = "fish"
     #  Prepend a number to each name.
     numbered = true
-    #  Disable separator between numbers and names.
-    #separator = false
     #  A custom separator can be specified as a string.
     separator = " -- "
+    #  Disable separator between numbers and names.
+    #separator = false
 
     #  Passes config to dmenu as flags.
     #  See `man dmenu` for more info.
@@ -71,7 +67,7 @@
     #  Make dmenu grab keyboard input before reading stdin.
     #fast = true
     #  Make dmenu match menu entries case sensitively while searching.
-    case-sensitive = true
+    #case-sensitive = true
     #  Make dmenu list items vertically using multiple lines.
     lines = 5
     #  Make dmenu display on a different monitor.
