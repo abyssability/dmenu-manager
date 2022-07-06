@@ -1,6 +1,6 @@
 #+title: DMM -- DMenu Manager
 
-Dmenu wrapper allowing the use of a toml file to configure dmenu.
+A =dmenu= wrapper allowing configuration with a toml file.
 
 See the [[file:EXAMPLE.toml][example config]] for a full explanation of the config options.  
 Below is a minimal configuration.
@@ -16,11 +16,17 @@ dmm ~/dmenu.toml
 # name = "command"
 say-hi = "echo 'Hello, world!'"
 # name = { run = "command", group = <number> }
-first = { run = "echo first", group = 1 }
+first = { run = "echo first", group = 100 }
 
 [config]
 dmenu.prompt = "example:"
 #+end_src
+
+* Home Config
+A config file may be written to =$XDG_CONFIG_HOME/dmm/config.toml= or its platform-specific equivalent.
+Check =dmm --home-config= for the location that will be checked for a default config.
+Any menu entries specified will be merged with those of the target config,
+and any other configuration will be overridden.
 
 * License
 This software is dedicated to the public domain under the [[https://creativecommons.org/publicdomain/zero/1.0/][Creative Commons Zero]].

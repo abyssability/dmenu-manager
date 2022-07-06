@@ -1,75 +1,103 @@
-    #    See the toml website, [[https://toml.io/]], for more info on the toml format
-    #    example config, not default
+    #  See the toml website, <https://toml.io/>, for more info on the toml format.
+    #  This is an example config, not default.
 
-    #  `entries` is an array of values
-    #  A valid value can be a single string or a table
-    entries = [
-        #  a string will be interpreted as a command to run
-        "name and command",
-        #  run: the command to run, also used as its name in the menu
-        #  group: all items are ordered by group; the default group is `0` (zero)
-        #  Larger groups are displayed first, negative groups are last
-        { run = "command and name", group = 5 },
-        { run = "last", group = -100 },
-    ]
-
-    #  `menu` is a table of name-value pairs.
-    #  The name will be displayed by dmenu;
-    #  if selected, the command will be executed.
+    #  The table `menu` contains name-value pairs.
     [menu]
+    #  The name will be displayed by dmenu.
+    #  If the value is a string, it will be run in a shell when the menu entry is selected.
     name = "command to run"
+    #  If the value is an array of strings, it will be run without a shell.
+    #  The first string will be the name of the command to run,
+    #  and any other strings will be passed to the command as arguments.
+    display = [ "command", "and", "args" ]
+    #  If the value is `true`, the name will be used as the run command.
+    firefox = true
+    #  If the value is `false`, it will filter out any entries with a matching name
+    #  that was added from the user's path.
+    "[" = false
+    #  The value may be a table, providing additional configuration options.
+    #  - run: The command to run; may be a string or an array of strings.
+    #  - group: All items are ordered by group; the default group is 0.
+    #    Larger groups are displayed first, lower groups are last.
+    hello = { run = "echo 'Hello, world!'", group = 1 }
+    world = { run = ["echo", "Hello, world!"], group = -1 }
     #  The name can be quoted to allow spaces (and more) in names.
-    "space separated name" = { run = "echo 'why?'", group = 1 }
     #  Triple quotes are multi-line strings.
-    small-script = """
-    ls -la | count > file-count.tmp
-    firefox
+    "small script" = """
+        ls -la | count > file-count.tmp
+        firefox file-count.tmp
+        rm file-count.tmp
     """
 
-    [menu."most important"]
-    run = "echo 'incredibly important'"
+    #  Menu entries may be specified with the normal table syntax instead of inline tables.
+    [menu.important]
+    run = "echo 'over 9000!'"
     group = 9001
-
-    [menu.foo]
-    run = "ls"
 
 
     [config]
-    #  Allows "custom" commands, not specified in `entries` or `menu`.
-    #  Type a command into dmenu, then press shift+enter to execute it.
-    ad-hoc = true
-    #  Specify a custom shell. The default is `sh`.
-    shell = "fish"
-    #  Prepend a number to each name.
+    #  Specify a custom shell with which to execute single string run commands.
+    shell = [ "fish", "-c" ]
+    #  If true, uses the default shell, `sh -c`.
+    #shell = false
+    #  If false, dmm will refuse to execute any run commands that are a single string,
+    #  as they require a shell to parse and execute them.
+    #shell = false
+    #  - shell: The shell to run commands in; may be an array of strings or a boolean.
+    #  - piped: If true, pipe run command into the specified shell.
+    #    Otherwise, pass the run command as the shell's last argument.
+    #shell = { shell = ["fish"], piped = true }
+
+    #  Allows "custom" commands that were not specified in `menu` to be run.
+    #  Type a command into dmenu, then press shift+enter to execute it in the shell.
+    custom = true
+
+    #  Prepend a number to each name before displaying it.
+    #  Uses the default separator ": ".
     numbered = true
-    #  A custom separator can be specified as a string.
-    separator = " -- "
-    #  Disable separator between numbers and names.
-    #separator = false
+    #  separator: Use a custom separator between the number and name.
+    #  If a string, it will be used as the separator.
+    #  If false, the separator is disabled. If true, the default separator ": " is used.
+    #numbered = { numbered = true, separator = " -- " }
+    #numbered = { numbered = true, separator = false }
+
+    #  Add programs found in provided directories to menu.
+    #  A leading `~/` is replaced with the path to the home directory,
+    #  but no other processing is done on provided paths.
+    path = ["~/bin"]
+    #  Add programs found in the PATH environment variable to the menu.
+    #path = true
+    #  path: A list of directories to search for binaries; must be an array of string.
+    #  env: Use the PATH environment variable.
+    #  replace: Override any custom entries that have the same name.
+    #  recursive: Also check all path subdirectories for executables.
+    #  group: Specify the default group for any entries added from PATH.
+    #path = { path = ["/path/to/dir", "other"], env = true }
+    #path = { env = true, replace = true, recursive = true, group = -10 }
 
     #  Passes config to dmenu as flags.
     #  See `man dmenu` for more info.
     [config.dmenu]
-    #  Give dmenu a custom prompt.
+    #  Give dmenu a custom prompt to display on the left of the input field.
     prompt = "dmenu:"
-    #  Give dmenu a custom font.
+    #  Give dmenu a custom font or font set.
     font = "Hack Nerd Font:size=16"
     #  Give dmenu a custom background color.
-    background = "#002b36"
+    background = "#101010"
     #  Give dmenu a custom font color.
-    foreground = "#839496"
+    foreground = "#f0f0f0"
     #  Give dmenu a custom background color for the selected menu entry.
-    selected-background = "#268bd2"
+    selected-background = "#00ffc0"
     #  Give dmenu a custom font color for the selected menu entry.
-    selected-foreground = "#002b36"
+    selected-foreground = "#000000"
+    #  Make dmenu list items vertically using the given number of lines.
+    lines = 5
     #  Make dmenu appear at the bottom of the screen.
     bottom = true
-    #  Make dmenu grab keyboard input before reading stdin.
-    #fast = true
     #  Make dmenu match menu entries case sensitively while searching.
     #case-sensitive = true
-    #  Make dmenu list items vertically using multiple lines.
-    lines = 5
+    #  Make dmenu grab keyboard input before reading stdin.
+    #fast = true
     #  Make dmenu display on a different monitor.
     #monitor = 0
     #  Make dmenu embed into `window-id`.

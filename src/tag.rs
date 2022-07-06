@@ -43,15 +43,10 @@ pub trait Tag {
             })
         })
     }
-
-    /// Default separator to append to the tag.
-    fn separator() -> Option<&'static str> {
-        None
-    }
 }
 
 /// Binary encoded zero-width spaces and non-joiners.
-pub struct Binary(String);
+pub struct Binary;
 
 impl Tag for Binary {
     fn push_tag(num: usize, out: &mut String) {
@@ -89,7 +84,7 @@ impl Tag for Binary {
 }
 
 /// Decimal encoded ascii numeric tag.
-pub struct Decimal(String);
+pub struct Decimal;
 
 impl Tag for Decimal {
     fn push_tag(num: usize, out: &mut String) {
@@ -100,9 +95,5 @@ impl Tag for Decimal {
         let tag = tag.trim_matches(SEP);
 
         tag.parse().ok()
-    }
-
-    fn separator() -> Option<&'static str> {
-        Some(": ")
     }
 }
