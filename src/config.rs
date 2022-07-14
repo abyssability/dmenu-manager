@@ -37,7 +37,7 @@ pub fn get() -> anyhow::Result<Config> {
     let dirs = ProjectDirs::from("", "", "dmm")
         .context("no valid home directory could be detected")
         .context("could not access config or cache directories")?;
-    let base_dirs = BaseDirs::new().expect("home directory disappeared halfway through execution?");
+    let base_dirs = BaseDirs::new().expect("unreachable");
     let args = parse_args(&dirs);
 
     let config = if let Some(path) = args.get_one::<String>("CONFIG") {
@@ -78,7 +78,7 @@ fn read_home_config(dirs: &Path) -> anyhow::Result<Option<String>> {
     match result {
         Ok(config) => Ok(Some(config)),
         Err(err) => {
-            if let ErrorKind::NotFound = err.kind() {
+            if err.kind() == ErrorKind::NotFound {
                 Ok(None)
             } else {
                 Err(err).context(format!(
@@ -125,8 +125,8 @@ fn parse_args(dirs: &ProjectDirs) -> ArgMatches {
                 .help("Path to the target toml config file")
                 .long_help(
                     "Path to the target toml config file.\n\
-                    Required unless piping config through stdin.\n\
-                    If set, anything sent through stdin is ignored.",
+                     Either this must be specified, or the config must be piped in.\n\
+                     If set, anything piped through stdin is ignored.",
                 )
                 .index(1);
             if atty::is(Stream::Stdin) {
@@ -252,7 +252,7 @@ pub enum Shell {
 }
 
 impl Shell {
-    pub fn is_enabled(&self) -> bool {
+    pub const fn is_enabled(&self) -> bool {
         match self {
             Self::Disabled => false,
             Self::Enabled { .. } => true,
@@ -350,9 +350,10 @@ impl Default for Custom {
 impl TryFrom<&Value> for Custom {
     type Error = anyhow::Error;
     fn try_from(custom: &Value) -> anyhow::Result<Self> {
-        match try_into_boolean("config.custom")(custom)? {
-            false => Ok(Self::Disabled),
-            true => Ok(Self::Enabled),
+        if try_into_boolean("config.custom")(custom)? {
+            Ok(Self::Disabled)
+        } else {
+            Ok(Self::Enabled)
         }
     }
 }
@@ -368,6 +369,13 @@ impl Numbered {
         match self {
             Self::Disabled | Self::Enabled(Separator::Disabled) => "",
             Self::Enabled(Separator::Enabled(separator)) => separator.as_str(),
+        }
+    }
+
+    pub const fn is_enabled(&self) -> bool {
+        match self {
+            Self::Disabled => false,
+            Self::Enabled(_) => true,
         }
     }
 }
@@ -406,9 +414,10 @@ impl TryFrom<&Value> for Numbered {
                     .transpose()?
                     .unwrap_or_default();
 
-                match enabled {
-                    true => Ok(Self::Enabled(separator)),
-                    false => Ok(Self::Disabled),
+                if enabled {
+                    Ok(Self::Enabled(separator))
+                } else {
+                    Ok(Self::Disabled)
                 }
             }
             other => type_error("config.numbered", &["boolean", "table"], other.type_str()),
@@ -590,7 +599,7 @@ impl Dmenu {
 
         for (flag, option) in options {
             if let Some(option) = option {
-                args.extend([flag.to_owned(), option])
+                args.extend([flag.to_owned(), option]);
             }
         }
 
@@ -890,7 +899,7 @@ fn home_config_error(path: &Path) -> String {
     )
 }
 
-fn target_config_error() -> &'static str {
+const fn target_config_error() -> &'static str {
     "found a problem with provided config"
 }
 

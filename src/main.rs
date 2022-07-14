@@ -13,7 +13,7 @@ use anyhow::{anyhow, Context};
 use is_executable::IsExecutable;
 use mimalloc::MiMalloc;
 
-use config::{BinPath, Config, Custom, Entry, Numbered, Run, Shell};
+use config::{BinPath, Config, Custom, Entry, Run, Shell};
 use tag::{Binary, Decimal, Tag};
 
 mod config;
@@ -26,36 +26,23 @@ type HashSet<T> = collections::HashSet<T, ahash::RandomState>;
 static GLOBAL_ALLOCATOR: MiMalloc = MiMalloc;
 
 fn main() {
-    if let Err(err) = run() {
-        report_errors(&err);
+    if let Err(err) = (|| -> anyhow::Result<()> {
+        let config = config::get()?;
+
+        let commands = if config.numbered.is_enabled() {
+            get_selection::<Decimal>(&config)?
+        } else {
+            get_selection::<Binary>(&config)?
+        };
+
+        run_commands(&commands, &config)?;
+
+        Ok(())
+    })() {
+        report_error!(err, "error:", red bold);
 
         process::exit(1);
     }
-}
-
-fn report_errors(err: &anyhow::Error) {
-    let mut chain = err.chain();
-    let err = chain.next().unwrap_or_else(|| unreachable!());
-
-    eprintln!("{} {err}", style_stderr!("error:", red bold));
-
-    for err in chain {
-        eprintln!("  {} {err}", style_stderr!("-", yellow bold));
-    }
-}
-
-fn run() -> anyhow::Result<()> {
-    let config = config::get()?;
-
-    let commands = if let Numbered::Enabled(_) = config.numbered {
-        get_selection::<Decimal>(&config)?
-    } else {
-        get_selection::<Binary>(&config)?
-    };
-
-    run_commands(&commands, &config)?;
-
-    Ok(())
 }
 
 fn get_selection<T: Tag>(config: &Config) -> anyhow::Result<Vec<Run>> {
@@ -66,53 +53,32 @@ fn get_selection<T: Tag>(config: &Config) -> anyhow::Result<Vec<Run>> {
         .split('\n')
         .filter(|choice| !choice.trim().is_empty());
 
-    choices
-        .map(|choice| {
+    let commands = choices
+        .filter_map(|choice| {
             if let Some((id, _)) = T::pop_tag(choice) {
                 let entry = entries
                     .get(id)
                     .expect("logic error: mismatch between entry tag and entry index");
 
-                Ok(entry.run.clone())
+                Some(entry.run.clone())
             } else if let Custom::Enabled = config.custom {
-                Ok(Run::Shell(choice.into()))
+                Some(Run::Shell(choice.into()))
             } else {
-                Err(anyhow!(
+                let err = anyhow!(
                     "ad-hoc commands are disabled; consider setting `config.custom = true`"
-                ))
+                )
+                .context(format!("can't run `{}`", style_stderr!(choice, bold)));
+
+                warn_error(&err);
+                None
             }
         })
-        .collect()
+        .collect();
+
+    Ok(commands)
 }
 
 fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
-    fn walk_dir(
-        dir: ReadDir,
-        recur: &mut Vec<PathBuf>,
-        files: &mut Vec<(OsString, String)>,
-    ) -> anyhow::Result<()> {
-        for entry in dir {
-            let entry = entry.context("error trying to walk PATH directory")?;
-            let filetype = entry.file_type().context("error reading file metadata")?;
-            let follow_symlink_is_dir = || {
-                fs::metadata(entry.path())
-                    .context("error reading file metadata")
-                    .map(|entry| entry.is_dir())
-            };
-
-            if filetype.is_dir() || follow_symlink_is_dir()? {
-                recur.push(entry.path());
-            } else if entry.path().is_executable() {
-                files.push((
-                    entry.path().into_os_string(),
-                    entry.file_name().to_string_lossy().into_owned(),
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
     let mut entries = if let BinPath::Enabled {
         path,
         env,
@@ -186,45 +152,45 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
 
         for bins in path_bins {
             let bins = bins?;
+            let mut bin_entries = Vec::new();
             for (path, name) in bins {
                 let path = path.into_string().map_err(|path| {
                     anyhow!(
                         "the path `{}` contained invalid unicode",
                         style_stderr!(path.to_string_lossy(), bold)
                     )
-                })?;
+                });
+                let path = match path {
+                    Ok(path) => path,
+                    Err(err) => {
+                        warn_error(&err);
+                        continue;
+                    }
+                };
 
                 if menu_entries.contains_key(&name) {
                     if *replace {
-                        let (key_name, entry) =
-                            menu_entries.remove_entry(&name).expect("unreachable");
-                        match entry {
-                            Some(RunEntry { name, group, .. }) => {
-                                menu_entries.insert(
-                                    key_name,
-                                    Some(RunEntry {
-                                        name,
-                                        run: Run::binary(path),
-                                        group,
-                                    }),
-                                );
-                            }
-                            None => {
-                                menu_entries.insert(key_name, None);
-                            }
+                        let menu_entry = menu_entries.get_mut(&name).expect("unreachable");
+                        if menu_entry.is_some() {
+                            let run_entry = menu_entry.take().expect("unreachable");
+                            bin_entries.push(RunEntry {
+                                name,
+                                run: Run::binary(path),
+                                group: run_entry.group,
+                            });
                         }
                     }
                 } else {
-                    entries.push(RunEntry {
+                    bin_entries.push(RunEntry {
                         name,
                         run: Run::binary(path),
                         group: *group,
                     });
                 }
             }
-        }
 
-        entries.extend(menu_entries.into_iter().filter_map(|(_, entry)| entry));
+            entries.extend(bin_entries);
+        }
 
         entries
     } else {
@@ -250,14 +216,49 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
     Ok(entries)
 }
 
+fn walk_dir(
+    dir: ReadDir,
+    recur: &mut Vec<PathBuf>,
+    files: &mut Vec<(OsString, String)>,
+) -> anyhow::Result<()> {
+    for entry in dir {
+        let entry = entry.context("error trying to walk PATH directory")?;
+        let filetype = entry.file_type().context("error reading file metadata")?;
+        let follow_symlink_is_dir = || {
+            fs::metadata(entry.path())
+                .context("error reading file metadata")
+                .map(|entry| entry.is_dir())
+        };
+
+        if filetype.is_dir() || follow_symlink_is_dir()? {
+            recur.push(entry.path());
+        } else if entry.path().is_executable() {
+            files.push((
+                entry.path().into_os_string(),
+                entry.file_name().to_string_lossy().into_owned(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn display_entries<T: Tag>(config: &Config, entries: &[RunEntry]) -> String {
     let mut display = String::new();
 
-    for (i, entry) in entries.iter().enumerate() {
-        T::push_tag(i, &mut display);
-        display.push_str(config.numbered.separator());
-        display.push_str(&entry.name);
-        display.push('\n');
+    if config.numbered.is_enabled() {
+        for (i, entry) in entries.iter().enumerate() {
+            T::push_tag(i, &mut display);
+            display.push_str(config.numbered.separator());
+            display.push_str(&entry.name);
+            display.push('\n');
+        }
+    } else {
+        for (i, entry) in entries.iter().enumerate() {
+            display.push_str(&entry.name);
+            T::push_tag(i, &mut display);
+            display.push('\n');
+        }
     }
 
     display
@@ -297,8 +298,6 @@ fn run_dmenu(menu_display: String, dmenu_args: &[String]) -> anyhow::Result<Stri
 }
 
 fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
-    let mut errs = Vec::<anyhow::Error>::new();
-
     for command in commands {
         match command {
             Run::Bare(run) => {
@@ -310,39 +309,28 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                     ));
 
                     if let Err(err) = result {
-                        errs.push(err);
+                        warn_error(&err);
                     }
                 }
             }
             Run::Shell(run) => {
                 if !run.is_empty() {
                     match &config.shell {
-                        Shell::Disabled => errs.push(
-                            anyhow!(
+                        Shell::Disabled => {
+                            let err = anyhow!(
                                 "shell execution is disabled; to enable, set `config.shell = true`"
                             )
                             .context(format!(
                                 "can't execute shell command `{}`",
                                 style_stderr!(run, bold)
-                            )),
-                        ),
+                            ));
+
+                            warn_error(&err);
+                        }
                         Shell::Enabled { shell, piped } => {
                             if let Some(shell_name) = shell.first() {
                                 let args = &shell[1..];
-                                if !piped {
-                                    let result = Command::new(shell_name)
-                                        .args(args)
-                                        .arg(run)
-                                        .spawn()
-                                        .context(format!(
-                                            "problem running shell command `{}`",
-                                            style_stderr!(run, bold)
-                                        ));
-
-                                    if let Err(err) = result {
-                                        errs.push(err);
-                                    }
-                                } else {
+                                if *piped {
                                     let mut shell = Command::new(shell_name)
                                         .args(args)
                                         .stdin(Stdio::piped())
@@ -361,6 +349,19 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                                     stdin
                                         .write_all(run.as_bytes())
                                         .context("failed to write to shell stdin??")?;
+                                } else {
+                                    let result = Command::new(shell_name)
+                                        .args(args)
+                                        .arg(run)
+                                        .spawn()
+                                        .context(format!(
+                                            "problem running shell command `{}`",
+                                            style_stderr!(run, bold)
+                                        ));
+
+                                    if let Err(err) = result {
+                                        warn_error(&err);
+                                    }
                                 }
                             }
                         }
@@ -393,10 +394,28 @@ fn display_bare(run: &[String]) -> String {
     buf
 }
 
+fn warn_error(err: &anyhow::Error) {
+    report_error!(err, "warning:", yellow bold);
+}
+
+macro_rules! report_error {
+    ($err:expr, $name:expr, $($style:ident)+) => {
+        {
+            let mut chain = $err.chain();
+            let err = chain.next().expect("unreachable");
+
+            eprintln!("{} {err}", style_stderr!($name, $($style )+));
+            for err in chain {
+                eprintln!("  {} {err}", style_stderr!("-", $($style )+));
+            }
+            eprintln!();
+        }
+    };
+}
+
 macro_rules! style_stream {
     ($stream:ident, $string:expr, $($style:ident)+) => {
         {
-            #[allow(unused_imports)]
             use owo_colors::OwoColorize;
             $string
                 $(
@@ -418,6 +437,7 @@ macro_rules! style_stderr {
     };
 }
 
+use report_error;
 use style_stderr;
 use style_stdout;
 use style_stream;
