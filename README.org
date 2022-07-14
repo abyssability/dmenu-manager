@@ -1,9 +1,9 @@
 #+title: DMM -- DMenu Manager
 
-A =dmenu= wrapper allowing configuration with a toml file.
+Allows the user to execute shell scripts by selecting them in =dmenu=; configured using [[https://toml.io/][toml]].
 
-See the [[file:EXAMPLE.toml][example config]] for a full explanation of the config options.  
-Below is a minimal configuration.
+See the [[file:EXAMPLE.toml][example config]] for a full explanation of the config options.
+Below is a minimal example config.
 
 #+begin_src sh
 dmm ~/dmenu.toml
@@ -25,7 +25,7 @@ dmenu.prompt = "example:"
 * Home Config
 A config file may be written to =$XDG_CONFIG_HOME/dmm/config.toml= or its platform-specific equivalent.
 Check =dmm --home-config= for the location that will be checked for a default config.
-Any menu entries specified will be merged with those of the target config,
+Any menu entries specified there will be merged with those of the target config,
 and any other configuration will be overridden.
 
 * License
