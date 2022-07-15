@@ -19,6 +19,7 @@ atty = "0.2"
 toml = "0.5"
 ahash = "0.7"
 mimalloc = "0.1"
+flexstr = "0.9"
 
 [profile.release]
 lto = true

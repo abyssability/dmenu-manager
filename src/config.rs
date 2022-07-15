@@ -12,6 +12,7 @@ use anyhow::{anyhow, Context};
 use atty::Stream;
 use clap::{command, crate_description, Arg, ArgMatches};
 use directories::{BaseDirs, ProjectDirs};
+use flexstr::{local_str, LocalStr, ToLocalStr};
 use toml::{map::Map, Value};
 
 use crate::HashSet;
@@ -147,38 +148,42 @@ fn parse_args(dirs: &ProjectDirs) -> ArgMatches {
 
 #[derive(Debug, Clone)]
 pub enum Run {
-    Shell(String),
-    Bare(Vec<String>),
+    Shell(LocalStr),
+    Bare(Vec<LocalStr>),
 }
 
 impl Run {
-    pub fn binary(run: String) -> Self {
+    pub fn binary(run: LocalStr) -> Self {
         Self::Bare(vec![run])
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum Entry {
-    Full { name: String, run: Run, group: i64 },
-    Name(String),
-    Filter(String),
+    Full {
+        name: LocalStr,
+        run: Run,
+        group: i64,
+    },
+    Name(LocalStr),
+    Filter(LocalStr),
 }
 
 impl Entry {
-    fn try_new(name: String, entry: &Value) -> anyhow::Result<Self> {
+    fn try_new(name: LocalStr, entry: &Value) -> anyhow::Result<Self> {
         match entry {
             Value::Boolean(true) => Ok(Self::Name(name)),
             Value::Boolean(false) => Ok(Self::Filter(name)),
             Value::String(run) => Ok(Self::Full {
                 name,
-                run: Run::Shell(run.clone()),
+                run: Run::Shell(run.to_local_str()),
                 group: 0,
             }),
             Value::Array(run) => {
                 let run = run
                     .iter()
                     .map(try_into_array_string(&format!("menu.{name}")))
-                    .collect::<Result<Vec<String>, _>>()?;
+                    .collect::<Result<Vec<LocalStr>, _>>()?;
 
                 Ok(Self::Full {
                     name,
@@ -206,14 +211,14 @@ impl Entry {
                         Value::Boolean(false) => Ok(Self::Filter(name)),
                         Value::String(run) => Ok(Self::Full {
                             name,
-                            run: Run::Shell(run.clone()),
+                            run: Run::Shell(run.to_local_str()),
                             group,
                         }),
                         Value::Array(run) => {
                             let run = run
                                 .iter()
                                 .map(try_into_array_string(&format!("menu.{name}.run")))
-                                .collect::<Result<Vec<String>, _>>()?;
+                                .collect::<Result<Vec<LocalStr>, _>>()?;
 
                             Ok(Self::Full {
                                 name,
@@ -238,9 +243,9 @@ impl Entry {
         }
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> LocalStr {
         match self {
-            Self::Full { name, .. } | Self::Name(name) | Self::Filter(name) => name.as_str(),
+            Self::Full { name, .. } | Self::Name(name) | Self::Filter(name) => name.to_local_str(),
         }
     }
 }
@@ -248,7 +253,7 @@ impl Entry {
 #[derive(Debug, Clone)]
 pub enum Shell {
     Disabled,
-    Enabled { shell: Vec<String>, piped: bool },
+    Enabled { shell: Vec<LocalStr>, piped: bool },
 }
 
 impl Shell {
@@ -272,7 +277,7 @@ impl ConfigItem for Shell {
 impl Default for Shell {
     fn default() -> Self {
         Self::Enabled {
-            shell: vec!["sh".to_owned(), "-c".to_owned()],
+            shell: vec![local_str!("sh"), local_str!("-c")],
             piped: false,
         }
     }
@@ -288,7 +293,7 @@ impl TryFrom<&Value> for Shell {
                 let shell = shell
                     .iter()
                     .map(try_into_array_string("config.shell"))
-                    .collect::<Result<Vec<String>, _>>()?;
+                    .collect::<Result<Vec<LocalStr>, _>>()?;
 
                 Ok(Self::Enabled {
                     shell,
@@ -304,7 +309,7 @@ impl TryFrom<&Value> for Shell {
                         value
                             .iter()
                             .map(try_into_array_string("config.shell.shell"))
-                            .collect::<Result<Vec<String>, _>>()
+                            .collect::<Result<Vec<LocalStr>, _>>()
                     })
                     .transpose()?
                     .unwrap_or_default();
@@ -428,12 +433,12 @@ impl TryFrom<&Value> for Numbered {
 #[derive(Debug, Clone)]
 pub enum Separator {
     Disabled,
-    Enabled(String),
+    Enabled(LocalStr),
 }
 
 impl Default for Separator {
     fn default() -> Self {
-        Self::Enabled(": ".to_owned())
+        Self::Enabled(local_str!(": "))
     }
 }
 
@@ -443,7 +448,7 @@ impl TryFrom<&Value> for Separator {
         match separator {
             Value::Boolean(false) => Ok(Self::Disabled),
             Value::Boolean(true) => Ok(Self::default()),
-            Value::String(separator) => Ok(Self::Enabled(separator.clone())),
+            Value::String(separator) => Ok(Self::Enabled(separator.to_local_str())),
             other => type_error(
                 "config.numbered.separator",
                 &["boolean", "string"],
@@ -457,7 +462,7 @@ impl TryFrom<&Value> for Separator {
 pub enum BinPath {
     Disabled,
     Enabled {
-        path: Vec<String>,
+        path: Vec<LocalStr>,
         env: bool,
         replace: bool,
         recursive: bool,
@@ -496,7 +501,7 @@ impl TryFrom<&Value> for BinPath {
                 let path = array
                     .iter()
                     .map(try_into_array_string("config.path"))
-                    .collect::<Result<Vec<String>, _>>()?;
+                    .collect::<Result<Vec<LocalStr>, _>>()?;
 
                 Ok(Self::Enabled {
                     path,
@@ -515,7 +520,7 @@ impl TryFrom<&Value> for BinPath {
                         value
                             .iter()
                             .map(try_into_array_string("config.path.path"))
-                            .collect::<Result<Vec<String>, _>>()
+                            .collect::<Result<Vec<LocalStr>, _>>()
                     })
                     .transpose()?
                     .unwrap_or_default();
@@ -563,22 +568,22 @@ impl TryFrom<&Value> for BinPath {
 
 #[derive(Debug, Default, Clone)]
 pub struct Dmenu {
-    pub prompt: Option<String>,
-    pub font: Option<String>,
-    pub background: Option<String>,
-    pub foreground: Option<String>,
-    pub selected_background: Option<String>,
-    pub selected_foreground: Option<String>,
+    pub prompt: Option<LocalStr>,
+    pub font: Option<LocalStr>,
+    pub background: Option<LocalStr>,
+    pub foreground: Option<LocalStr>,
+    pub selected_background: Option<LocalStr>,
+    pub selected_foreground: Option<LocalStr>,
     pub lines: Option<u64>,
     pub bottom: bool,
     pub case_sensitive: bool,
     pub fast: bool,
     pub monitor: Option<u64>,
-    pub window_id: Option<String>,
+    pub window_id: Option<LocalStr>,
 }
 
 impl Dmenu {
-    pub fn args(&self) -> Vec<String> {
+    pub fn args(&self) -> Vec<LocalStr> {
         let mut args = Vec::new();
 
         let options = [
@@ -588,18 +593,28 @@ impl Dmenu {
             ("-nf", self.foreground.clone()),
             ("-sb", self.selected_background.clone()),
             ("-sf", self.selected_foreground.clone()),
-            ("-l", self.lines.as_ref().map(u64::to_string)),
-            ("-m", self.monitor.as_ref().map(u64::to_string)),
+            (
+                "-l",
+                self.lines
+                    .as_ref()
+                    .map(|lines| lines.to_string().to_local_str()),
+            ),
+            (
+                "-m",
+                self.monitor
+                    .as_ref()
+                    .map(|monitor| monitor.to_string().to_local_str()),
+            ),
             ("-w", self.window_id.clone()),
         ];
 
-        self.bottom.then(|| args.push("-b".to_owned()));
-        (!self.case_sensitive).then(|| args.push("-i".to_owned()));
-        self.fast.then(|| args.push("-f".to_owned()));
+        self.bottom.then(|| args.push(local_str!("-b")));
+        (!self.case_sensitive).then(|| args.push(local_str!("-i")));
+        self.fast.then(|| args.push(local_str!("-f")));
 
         for (flag, option) in options {
             if let Some(option) = option {
-                args.extend([flag.to_owned(), option]);
+                args.extend([local_str!(flag), option]);
             }
         }
 
@@ -741,7 +756,7 @@ fn try_get_entries(
         .transpose()?
         .into_iter()
         .flatten()
-        .map(|(name, value)| Entry::try_new(name.clone(), value))
+        .map(|(name, value)| Entry::try_new(name.to_local_str(), value))
         .collect::<Result<Vec<Entry>, _>>()
         .context(target_config_error())?;
 
@@ -751,20 +766,16 @@ fn try_get_entries(
         .transpose()?
         .into_iter()
         .flatten()
-        .map(|(name, value)| Entry::try_new(name.clone(), value))
+        .map(|(name, value)| Entry::try_new(name.to_local_str(), value))
         .collect::<Result<Vec<Entry>, _>>()
         .context(home_config_error(config_path))?;
 
-    let entry_names = menu
-        .iter()
-        .map(Entry::name)
-        .map(str::to_owned)
-        .collect::<HashSet<String>>();
+    let entry_names = menu.iter().map(Entry::name).collect::<HashSet<LocalStr>>();
 
     menu.extend(
         home_menu
             .into_iter()
-            .filter(|entry| !entry_names.contains(entry.name())),
+            .filter(|entry| !entry_names.contains(&entry.name())),
     );
 
     Ok(menu)
@@ -832,9 +843,9 @@ fn type_error<T>(name: &str, valid: &[&str], found: &str) -> anyhow::Result<T> {
     ))
 }
 
-fn try_into_string(name: &str) -> impl Fn(&Value) -> anyhow::Result<String> + '_ {
+fn try_into_string(name: &str) -> impl Fn(&Value) -> anyhow::Result<LocalStr> + '_ {
     move |value| match value {
-        Value::String(value) => Ok(value.clone()),
+        Value::String(value) => Ok(value.to_local_str()),
         other => type_error(name, &["string"], other.type_str()),
     }
 }
@@ -867,10 +878,10 @@ fn try_into_array(name: &str) -> impl Fn(&Value) -> anyhow::Result<&Vec<Value>> 
     }
 }
 
-fn try_into_array_string(name: &str) -> impl Fn(&Value) -> anyhow::Result<String> + '_ {
+fn try_into_array_string(name: &str) -> impl Fn(&Value) -> anyhow::Result<LocalStr> + '_ {
     move |value| {
         match value {
-        Value::String(value) => Ok(value.clone()),
+        Value::String(value) => Ok(value.to_local_str()),
         other => Err(anyhow!(
             "the array `{}` must only contain elements of type `{}`, but an element is of type `{}`",
             style_stderr!(name, bold),

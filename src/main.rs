@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Context};
+use flexstr::{LocalStr, ToLocalStr};
 use is_executable::IsExecutable;
 use mimalloc::MiMalloc;
 
@@ -93,11 +94,11 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
             .iter()
             .map(|entry| {
                 (
-                    entry.name().to_owned(),
+                    entry.name(),
                     RunEntry::try_from(entry.clone(), !config.shell.is_enabled()),
                 )
             })
-            .collect::<HashMap<String, Option<RunEntry>>>();
+            .collect::<HashMap<LocalStr, Option<RunEntry>>>();
 
         let env_paths = env.then(|| env::var_os("PATH")).flatten();
         let env_paths = env_paths
@@ -116,7 +117,7 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
                     path.push(&pathstr[start..]);
                     path
                 } else {
-                    PathBuf::from(pathstr)
+                    PathBuf::from(pathstr.as_str())
                 }
             })
             .chain(env_paths);
@@ -161,7 +162,7 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
                     )
                 });
                 let path = match path {
-                    Ok(path) => path,
+                    Ok(path) => path.to_local_str(),
                     Err(err) => {
                         warn_error(&err);
                         continue;
@@ -192,6 +193,8 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
             entries.extend(bin_entries);
         }
 
+        entries.extend(menu_entries.into_iter().filter_map(|(_, entry)| entry));
+
         entries
     } else {
         config
@@ -219,7 +222,7 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
 fn walk_dir(
     dir: ReadDir,
     recur: &mut Vec<PathBuf>,
-    files: &mut Vec<(OsString, String)>,
+    files: &mut Vec<(OsString, LocalStr)>,
 ) -> anyhow::Result<()> {
     for entry in dir {
         let entry = entry.context("error trying to walk PATH directory")?;
@@ -235,7 +238,7 @@ fn walk_dir(
         } else if entry.path().is_executable() {
             files.push((
                 entry.path().into_os_string(),
-                entry.file_name().to_string_lossy().into_owned(),
+                entry.file_name().to_string_lossy().to_local_str(),
             ));
         }
     }
@@ -264,9 +267,15 @@ fn display_entries<T: Tag>(config: &Config, entries: &[RunEntry]) -> String {
     display
 }
 
-fn run_dmenu(menu_display: String, dmenu_args: &[String]) -> anyhow::Result<String> {
+fn run_dmenu(menu_display: String, dmenu_args: &[LocalStr]) -> anyhow::Result<String> {
     let mut dmenu = Command::new("dmenu")
-        .args(dmenu_args)
+        .args(
+            dmenu_args
+                .iter()
+                .map(LocalStr::as_str)
+                .collect::<Vec<&str>>()
+                .as_slice(),
+        )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -302,11 +311,14 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
         match command {
             Run::Bare(run) => {
                 if let Some(bin) = run.first() {
-                    let args = &run[1..];
-                    let result = Command::new(bin).args(args).spawn().context(format!(
-                        "couldn't run bare command `{}`",
-                        style_stderr!(display_bare(run), bold)
-                    ));
+                    let args = &run[1..].iter().map(LocalStr::as_str).collect::<Vec<&str>>();
+                    let result = Command::new(bin.as_str())
+                        .args(args)
+                        .spawn()
+                        .context(format!(
+                            "couldn't run bare command `{}`",
+                            style_stderr!(display_bare(run.as_slice()), bold)
+                        ));
 
                     if let Err(err) = result {
                         warn_error(&err);
@@ -329,9 +341,12 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                         }
                         Shell::Enabled { shell, piped } => {
                             if let Some(shell_name) = shell.first() {
-                                let args = &shell[1..];
+                                let args = &shell[1..]
+                                    .iter()
+                                    .map(LocalStr::as_str)
+                                    .collect::<Vec<&str>>();
                                 if *piped {
-                                    let mut shell = Command::new(shell_name)
+                                    let mut shell = Command::new(shell_name.as_str())
                                         .args(args)
                                         .stdin(Stdio::piped())
                                         .stdout(Stdio::piped())
@@ -350,9 +365,9 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                                         .write_all(run.as_bytes())
                                         .context("failed to write to shell stdin??")?;
                                 } else {
-                                    let result = Command::new(shell_name)
+                                    let result = Command::new(shell_name.as_str())
                                         .args(args)
-                                        .arg(run)
+                                        .arg(run.as_str())
                                         .spawn()
                                         .context(format!(
                                             "problem running shell command `{}`",
@@ -374,7 +389,7 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn display_bare(run: &[String]) -> String {
+fn display_bare(run: &[LocalStr]) -> String {
     let mut buf = String::new();
 
     match run {
@@ -444,7 +459,7 @@ use style_stream;
 
 #[derive(Debug, Clone)]
 struct RunEntry {
-    name: String,
+    name: LocalStr,
     run: Run,
     group: i64,
 }
