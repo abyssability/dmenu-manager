@@ -101,7 +101,7 @@ dependencies = [
 
 [[package]]
 name = "dmm"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "ahash",
  "anyhow",

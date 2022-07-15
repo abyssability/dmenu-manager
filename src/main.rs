@@ -154,6 +154,7 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
         for bins in path_bins {
             let bins = bins?;
             let mut bin_entries = Vec::new();
+
             for (path, name) in bins {
                 let path = path.into_string().map_err(|path| {
                     anyhow!(
