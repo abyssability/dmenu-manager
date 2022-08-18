@@ -28,6 +28,17 @@ Check =dmm --home-config= for the location that will be checked for a default co
 Any menu entries specified there will be merged with those of the target config,
 and any other configuration will be overridden.
 
+#+begin_src toml
+# ~/.config/dmm/config.toml
+
+[config.dmenu]
+font = "Hack Nerd Font:size=16"
+background = "#101010"
+foreground = "#f0f0f0"
+selected-background = "#00ffc0"
+selected-foreground = "#000000"
+#+end_src
+
 * License
 This software is dedicated to the public domain under the [[https://creativecommons.org/publicdomain/zero/1.0/][Creative Commons Zero]].
 
