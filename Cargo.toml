@@ -11,7 +11,7 @@ readme = "README.md"
 
 [dependencies]
 clap = { version = "3.2", features = ["cargo", "env"] }
-owo-colors = { version = "3.4", features = ["supports-colors"] }
+termcolor = "1.1"
 directories = "4.0"
 anyhow = "1.0"
 is_executable = "1.0"

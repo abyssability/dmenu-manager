@@ -13,6 +13,7 @@ use anyhow::{anyhow, Context};
 use flexstr::{LocalStr, ToLocalStr};
 use is_executable::IsExecutable;
 use mimalloc::MiMalloc;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 use config::{BinPath, Config, Custom, Entry, Run, Shell};
 use tag::{Binary, Decimal, Tag};
@@ -40,7 +41,7 @@ fn main() {
 
         Ok(())
     })() {
-        report_error!(err, "error:", red bold);
+        error(&err);
 
         process::exit(1);
     }
@@ -68,7 +69,10 @@ fn get_selection<T: Tag>(config: &Config) -> anyhow::Result<Vec<Run>> {
                 let err = anyhow!(
                     "ad-hoc commands are disabled; consider setting `config.custom = true`"
                 )
-                .context(format!("can't run `{}`", style_stderr!(choice, bold)));
+                .context(format!(
+                    "can't run `{}`",
+                    style_stderr!(&bold(), "{choice}")
+                ));
 
                 warn_error(&err);
                 None
@@ -159,7 +163,7 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
                 let path = path.into_string().map_err(|path| {
                     anyhow!(
                         "the path `{}` contained invalid unicode",
-                        style_stderr!(path.to_string_lossy(), bold)
+                        style_stderr!(bold(), "{}", path.to_string_lossy())
                     )
                 });
                 let path = match path {
@@ -283,7 +287,7 @@ fn run_dmenu(menu_display: String, dmenu_args: &[LocalStr]) -> anyhow::Result<St
         .spawn()
         .context(format!(
             "failed to run command `{}` (is it installed?)",
-            style_stderr!("dmenu", bold)
+            style_stderr!(bold(), "dmenu")
         ))?;
     let mut stdin = dmenu
         .stdin
@@ -318,7 +322,7 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                         .spawn()
                         .context(format!(
                             "couldn't run bare command `{}`",
-                            style_stderr!(display_bare(run.as_slice()), bold)
+                            style_stderr!(bold(), "{command}")
                         ));
 
                     if let Err(err) = result {
@@ -335,7 +339,7 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                             )
                             .context(format!(
                                 "can't execute shell command `{}`",
-                                style_stderr!(run, bold)
+                                style_stderr!(bold(), "{run}")
                             ));
 
                             warn_error(&err);
@@ -355,7 +359,7 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                                         .spawn()
                                         .context(format!(
                                             "failed to run shell `{}` (is it installed?)",
-                                            style_stderr!(shell_name, bold)
+                                            style_stderr!(bold(), "{shell_name}")
                                         ))?;
                                     let mut stdin = shell
                                         .stdin
@@ -372,7 +376,7 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                                         .spawn()
                                         .context(format!(
                                             "problem running shell command `{}`",
-                                            style_stderr!(run, bold)
+                                            style_stderr!(bold(), "{run}")
                                         ));
 
                                     if let Err(err) = result {
@@ -390,73 +394,98 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn display_bare(run: &[LocalStr]) -> String {
-    let mut buf = String::new();
-
-    match run {
-        [] => (),
-        [run] => {
-            buf.push_str(run);
-        }
-        [first, rest @ ..] => {
-            buf.push_str(first);
-            for option in rest {
-                buf.push(' ');
-                buf.push_str(option);
-            }
-        }
-    }
-
-    buf
+fn error(err: &anyhow::Error) {
+    report_error(
+        err,
+        "error:",
+        ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true),
+    );
 }
 
 fn warn_error(err: &anyhow::Error) {
-    report_error!(err, "warning:", yellow bold);
+    report_error(
+        err,
+        "warning:",
+        ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true),
+    );
 }
 
-macro_rules! report_error {
-    ($err:expr, $name:expr, $($style:ident)+) => {
-        {
-            let mut chain = $err.chain();
-            let err = chain.next().expect("unreachable");
+fn report_error(err: &anyhow::Error, name: &str, style: &ColorSpec) {
+    let mut stderr = StandardStream::stderr(stderr_color_choice());
+    let mut chain = err.chain();
+    let err = chain.next().unwrap();
 
-            eprintln!("{} {err}", style_stderr!($name, $($style )+));
-            for err in chain {
-                eprintln!("  {} {err}", style_stderr!("-", $($style )+));
-            }
-            eprintln!();
-        }
-    };
+    write_style!(stderr, style, "{name} ");
+    eprintln!("{err}");
+    for cause in chain {
+        write_style!(stderr, style, "  - ");
+        eprintln!("{cause}");
+    }
+    eprintln!();
 }
 
-macro_rules! style_stream {
-    ($stream:ident, $string:expr, $($style:ident)+) => {
-        {
-            use owo_colors::OwoColorize;
-            $string
-                $(
-                    .if_supports_color(owo_colors::Stream::$stream, owo_colors::OwoColorize::$style)
-                )+
-        }
-    };
+fn bold() -> ColorSpec {
+    let mut style = ColorSpec::new();
+    style.set_bold(true);
+    style
 }
 
-macro_rules! style_stdout {
-    ($string:expr, $($style:ident)+) => {
-        crate::style_stream!(Stdout, $string, $($style )+)
-    };
+fn stderr_color_choice() -> ColorChoice {
+    if atty::is(atty::Stream::Stderr) {
+        ColorChoice::Auto
+    } else {
+        ColorChoice::Never
+    }
+}
+
+fn stderr_color_enabled() -> bool {
+    atty::is(atty::Stream::Stderr) && StandardStream::stderr(ColorChoice::Auto).supports_color()
+}
+
+fn stdout_color_enabled() -> bool {
+    atty::is(atty::Stream::Stdout) && StandardStream::stdout(ColorChoice::Auto).supports_color()
 }
 
 macro_rules! style_stderr {
-    ($string:expr, $($style:ident)+) => {
-        crate::style_stream!(Stderr, $string, $($style )+)
-    };
+    ($style:expr, $($token:tt)+) => {
+        if crate::stderr_color_enabled() {
+            let mut buf = termcolor::Ansi::new(Vec::new());
+            let _result = crate::write_style!(buf, $style, $($token)+);
+            String::from_utf8(buf.into_inner()).unwrap()
+        } else {
+            format!($($token)+)
+        }
+    }
 }
 
-use report_error;
+macro_rules! style_stdout {
+    ($style:expr, $($token:tt)+) => {
+        if crate::stdout_color_enabled() {
+            let mut buf = termcolor::Ansi::new(Vec::new());
+            let _result = crate::write_style!(buf, $style, $($token)+);
+            String::from_utf8(buf.into_inner()).unwrap()
+        } else {
+            format!($($token)+)
+        }
+    }
+}
+
+macro_rules! write_style {
+    ($stream:ident, $style:expr, $($token:tt)+) => {
+        {
+            use termcolor::WriteColor;
+            use std::io::Write;
+
+            let _result = $stream.set_color(&$style);
+            let _result = write!(&mut $stream, $($token)+);
+            let _result = $stream.reset();
+        }
+    }
+}
+
 use style_stderr;
 use style_stdout;
-use style_stream;
+use write_style;
 
 #[derive(Debug, Clone)]
 struct RunEntry {

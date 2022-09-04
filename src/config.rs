@@ -1,6 +1,6 @@
 use std::{
     env,
-    fmt::Write,
+    fmt::{Display, Write},
     fs,
     io::{self, ErrorKind, Read},
     panic,
@@ -13,10 +13,11 @@ use atty::Stream;
 use clap::{command, crate_description, Arg, ArgMatches};
 use directories::{BaseDirs, ProjectDirs};
 use flexstr::{local_str, LocalStr, ToLocalStr};
+use termcolor::{Color, ColorSpec};
 use toml::{map::Map, Value};
 
 use crate::HashSet;
-use crate::{style_stderr, style_stdout};
+use crate::{bold, style_stderr, style_stdout};
 
 const SHORT_EXAMPLE: &str = r#"    # A short example config; see `--help` for more info.
     [menu]
@@ -44,7 +45,7 @@ pub fn get() -> anyhow::Result<Config> {
     let config = if let Some(path) = args.get_one::<String>("CONFIG") {
         fs::read_to_string(path).context(format!(
             "unable to read config file `{}`",
-            style_stderr!(path, bold)
+            style_stderr!(bold(), "{path}")
         ))?
     } else {
         let mut buf = String::new();
@@ -61,7 +62,11 @@ pub fn get() -> anyhow::Result<Config> {
     let home_config = home_config.map(|config| {
         config.parse::<Value>().context(format!(
             "found incorrect formatting in home config `{}`",
-            style_stderr!(dirs.config_dir().join("config.toml").display(), bold)
+            style_stderr!(
+                bold(),
+                "{}",
+                dirs.config_dir().join("config.toml").display()
+            )
         ))
     });
     let home_config = if let Some(home_config) = home_config {
@@ -84,7 +89,7 @@ fn read_home_config(dirs: &Path) -> anyhow::Result<Option<String>> {
             } else {
                 Err(err).context(format!(
                     "unable to read home config file `{}`",
-                    style_stderr!(config_path.display(), bold)
+                    style_stderr!(bold(), "{}", config_path.display())
                 ))
             }
         }
@@ -106,13 +111,13 @@ fn parse_args(dirs: &ProjectDirs) -> ArgMatches {
         ))
         .after_help(&*format!(
             "{}\n{}\n\n{}",
-            style_stdout!("CONFIG:", yellow),
+            style_stdout!(ColorSpec::new().set_fg(Some(Color::Yellow)), "CONFIG:"),
             SHORT_EXAMPLE,
             HELP_FOOTER
         ))
         .after_long_help(&*format!(
             "{}\n{}\n\n{}",
-            style_stdout!("CONFIG:", yellow),
+            style_stdout!(ColorSpec::new().set_fg(Some(Color::Yellow)), "CONFIG:"),
             LONG_EXAMPLE,
             HELP_FOOTER
         ))
@@ -158,6 +163,24 @@ impl Run {
     }
 }
 
+impl Display for Run {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Shell(command) => write!(f, "{command}"),
+            Self::Bare(command) => match command.as_slice() {
+                [] => Ok(()),
+                [run, args @ ..] => {
+                    write!(f, "{run}")?;
+                    for arg in args {
+                        write!(f, " {arg}")?;
+                    }
+                    Ok(())
+                }
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Entry {
     Full {
@@ -200,8 +223,8 @@ impl Entry {
 
                 let missing_run_error = format!(
                     "`{}` must have a value if `{}` is a table",
-                    style_stderr!(&format!("menu.{name}.run"), bold),
-                    style_stderr!(&format!("menu.{name}"), bold),
+                    style_stderr!(bold(), "menu.{name}.run"),
+                    style_stderr!(bold(), "menu.{name}"),
                 );
 
                 table
@@ -819,27 +842,26 @@ fn type_error<T>(name: &str, valid: &[&str], found: &str) -> anyhow::Result<T> {
     let mut types = String::new();
     match valid {
         [] => panic!("provide at least one valid type"),
-        [valid] => write!(types, "`{}`", style_stderr!(valid, bold)).expect("unreachable"),
+        [valid] => write!(types, "`{}`", style_stderr!(bold(), "{valid}")).unwrap(),
         [left, right] => write!(
             types,
             "`{}` or `{}`",
-            style_stderr!(left, bold),
-            style_stderr!(right, bold)
+            style_stderr!(bold(), "{left}"),
+            style_stderr!(bold(), "{right}")
         )
         .expect("unreachable"),
         [valid @ .., last] => {
             for valid in valid {
-                write!(types, "`{}`", style_stderr!(valid, bold)).expect("unreachable");
-                types.push_str(", ");
+                write!(types, "`{}`, ", style_stderr!(bold(), "{valid}")).unwrap();
             }
-            write!(types, "or `{}`", style_stderr!(last, bold)).expect("unreachable");
+            write!(types, "or `{}`", style_stderr!(bold(), "{last}")).unwrap();
         }
     }
 
     Err(anyhow!(
         "`{}` must be of type {types}, but is of type `{}`",
-        style_stderr!(name, bold),
-        style_stderr!(found, bold)
+        style_stderr!(bold(), "{name}"),
+        style_stderr!(bold(), "{found}")
     ))
 }
 
@@ -884,9 +906,9 @@ fn try_into_array_string(name: &str) -> impl Fn(&Value) -> anyhow::Result<LocalS
         Value::String(value) => Ok(value.to_local_str()),
         other => Err(anyhow!(
             "the array `{}` must only contain elements of type `{}`, but an element is of type `{}`",
-            style_stderr!(name, bold),
-            style_stderr!("string", bold),
-            style_stderr!(other.type_str(), bold)
+            style_stderr!(bold(), "{name}"),
+            style_stderr!(bold(), "string"),
+            style_stderr!(bold(), "{}", other.type_str())
         )),
     }
     }
@@ -897,7 +919,7 @@ fn try_into_unsigned_integer(name: &str) -> impl Fn(i64) -> anyhow::Result<u64> 
         value.try_into().map_err(|_| {
             anyhow!(
                 "`{}` must be a positive integer, but is negative",
-                style_stderr!(name, bold),
+                style_stderr!(bold(), "{name}"),
             )
         })
     }
@@ -906,7 +928,7 @@ fn try_into_unsigned_integer(name: &str) -> impl Fn(i64) -> anyhow::Result<u64> 
 fn home_config_error(path: &Path) -> String {
     format!(
         "found a problem with home config `{}`",
-        style_stderr!(path.display(), bold)
+        style_stderr!(bold(), "{}", path.display())
     )
 }
 
