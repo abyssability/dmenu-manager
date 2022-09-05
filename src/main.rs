@@ -57,7 +57,7 @@ fn get_selection<T: Tag>(config: &Config) -> anyhow::Result<Vec<Run>> {
 
     let commands = choices
         .filter_map(|choice| {
-            if let Some((id, _)) = T::pop_tag(choice) {
+            if let Some(id) = T::pop_tag(choice) {
                 let entry = entries
                     .get(id)
                     .expect("logic error: mismatch between entry tag and entry index");
