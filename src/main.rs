@@ -10,15 +10,16 @@ use std::{
 };
 
 use anyhow::{anyhow, Context};
-use flexstr::{LocalStr, ToLocalStr};
 use is_executable::IsExecutable;
 use mimalloc::MiMalloc;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 use config::{BinPath, Config, Custom, Entry, Run, Shell};
+use imstr::ImStr;
 use tag::{Binary, Decimal, Tag};
 
 mod config;
+mod imstr;
 mod tag;
 
 type HashMap<K, V> = collections::HashMap<K, V, ahash::RandomState>;
@@ -26,6 +27,31 @@ type HashSet<T> = collections::HashSet<T, ahash::RandomState>;
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: MiMalloc = MiMalloc;
+
+#[derive(Debug, Clone)]
+struct RunEntry {
+    name: ImStr,
+    run: Run,
+    group: i64,
+}
+
+impl RunEntry {
+    fn try_from(entry: Entry, shell_is_enabled: bool) -> Option<Self> {
+        match entry {
+            Entry::Full { name, run, group } => Some(Self { name, run, group }),
+            Entry::Name(name) => Some(Self {
+                run: if shell_is_enabled {
+                    Run::Shell(name.clone())
+                } else {
+                    Run::binary(name.clone())
+                },
+                name,
+                group: 0,
+            }),
+            Entry::Filter(_) => None,
+        }
+    }
+}
 
 fn main() {
     if let Err(err) = (|| -> anyhow::Result<()> {
@@ -37,12 +63,9 @@ fn main() {
             get_selection::<Binary>(&config)?
         };
 
-        run_commands(&commands, &config)?;
-
-        Ok(())
+        run_commands(&commands, &config)
     })() {
-        error(&err);
-
+        display_error(&err);
         process::exit(1);
     }
 }
@@ -102,7 +125,7 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
                     RunEntry::try_from(entry.clone(), !config.shell.is_enabled()),
                 )
             })
-            .collect::<HashMap<LocalStr, Option<RunEntry>>>();
+            .collect::<HashMap<ImStr, Option<RunEntry>>>();
 
         let env_paths = env.then(|| env::var_os("PATH")).flatten();
         let env_paths = env_paths
@@ -167,7 +190,7 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
                     )
                 });
                 let path = match path {
-                    Ok(path) => path.to_local_str(),
+                    Ok(path) => ImStr::from(path),
                     Err(err) => {
                         warn_error(&err);
                         continue;
@@ -227,7 +250,7 @@ fn build_entries(config: &Config) -> anyhow::Result<Vec<RunEntry>> {
 fn walk_dir(
     dir: ReadDir,
     recur: &mut Vec<PathBuf>,
-    files: &mut Vec<(OsString, LocalStr)>,
+    files: &mut Vec<(OsString, ImStr)>,
 ) -> anyhow::Result<()> {
     for entry in dir {
         let entry = entry.context("error trying to walk PATH directory")?;
@@ -243,7 +266,7 @@ fn walk_dir(
         } else if entry.path().is_executable() {
             files.push((
                 entry.path().into_os_string(),
-                entry.file_name().to_string_lossy().to_local_str(),
+                entry.file_name().to_string_lossy().into(),
             ));
         }
     }
@@ -272,12 +295,12 @@ fn display_entries<T: Tag>(config: &Config, entries: &[RunEntry]) -> String {
     display
 }
 
-fn run_dmenu(menu_display: String, dmenu_args: &[LocalStr]) -> anyhow::Result<String> {
+fn run_dmenu(menu_display: String, dmenu_args: &[ImStr]) -> anyhow::Result<String> {
     let mut dmenu = Command::new("dmenu")
         .args(
             dmenu_args
                 .iter()
-                .map(LocalStr::as_str)
+                .map(ImStr::as_str)
                 .collect::<Vec<&str>>()
                 .as_slice(),
         )
@@ -316,7 +339,7 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
         match command {
             Run::Bare(run) => {
                 if let Some(bin) = run.first() {
-                    let args = &run[1..].iter().map(LocalStr::as_str).collect::<Vec<&str>>();
+                    let args = &run[1..].iter().map(ImStr::as_str).collect::<Vec<&str>>();
                     let result = Command::new(bin.as_str())
                         .args(args)
                         .spawn()
@@ -346,10 +369,8 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
                         }
                         Shell::Enabled { shell, piped } => {
                             if let Some(shell_name) = shell.first() {
-                                let args = &shell[1..]
-                                    .iter()
-                                    .map(LocalStr::as_str)
-                                    .collect::<Vec<&str>>();
+                                let args =
+                                    &shell[1..].iter().map(ImStr::as_str).collect::<Vec<&str>>();
                                 if *piped {
                                     let mut shell = Command::new(shell_name.as_str())
                                         .args(args)
@@ -394,7 +415,7 @@ fn run_commands(commands: &[Run], config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn error(err: &anyhow::Error) {
+fn display_error(err: &anyhow::Error) {
     report_error(
         err,
         "error:",
@@ -450,7 +471,7 @@ macro_rules! style_stderr {
     ($style:expr, $($token:tt)+) => {
         if crate::stderr_color_enabled() {
             let mut buf = termcolor::Ansi::new(Vec::new());
-            let _result = crate::write_style!(buf, $style, $($token)+);
+            crate::write_style!(buf, $style, $($token)+);
             String::from_utf8(buf.into_inner()).unwrap()
         } else {
             format!($($token)+)
@@ -462,7 +483,7 @@ macro_rules! style_stdout {
     ($style:expr, $($token:tt)+) => {
         if crate::stdout_color_enabled() {
             let mut buf = termcolor::Ansi::new(Vec::new());
-            let _result = crate::write_style!(buf, $style, $($token)+);
+            crate::write_style!(buf, $style, $($token)+);
             String::from_utf8(buf.into_inner()).unwrap()
         } else {
             format!($($token)+)
@@ -476,9 +497,9 @@ macro_rules! write_style {
             use termcolor::WriteColor;
             use std::io::Write;
 
-            let _result = $stream.set_color(&$style);
-            let _result = write!(&mut $stream, $($token)+);
-            let _result = $stream.reset();
+            $stream.set_color(&$style).unwrap();
+            write!(&mut $stream, $($token)+).unwrap();
+            $stream.reset().unwrap();
         }
     }
 }
@@ -486,28 +507,3 @@ macro_rules! write_style {
 use style_stderr;
 use style_stdout;
 use write_style;
-
-#[derive(Debug, Clone)]
-struct RunEntry {
-    name: LocalStr,
-    run: Run,
-    group: i64,
-}
-
-impl RunEntry {
-    fn try_from(entry: Entry, shell_is_enabled: bool) -> Option<Self> {
-        match entry {
-            Entry::Full { name, run, group } => Some(Self { name, run, group }),
-            Entry::Name(name) => Some(Self {
-                run: if shell_is_enabled {
-                    Run::Shell(name.clone())
-                } else {
-                    Run::binary(name.clone())
-                },
-                name,
-                group: 0,
-            }),
-            Entry::Filter(_) => None,
-        }
-    }
-}

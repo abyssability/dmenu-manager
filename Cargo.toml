@@ -13,13 +13,12 @@ readme = "README.md"
 clap = { version = "3.2", features = ["cargo", "env"] }
 termcolor = "1.1"
 directories = "4.0"
-anyhow = "1.0"
 is_executable = "1.0"
+anyhow = "1.0"
 atty = "0.2"
 toml = "0.5"
 ahash = "0.7"
 mimalloc = "0.1"
-flexstr = "0.9"
 
 [profile.release]
 lto = true
