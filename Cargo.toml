@@ -22,4 +22,3 @@ mimalloc = "0.1"
 
 [profile.release]
 lto = true
-codegen-units = 1
