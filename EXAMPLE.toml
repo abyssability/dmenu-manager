@@ -87,7 +87,7 @@
     #  Give dmenu a custom font color.
     foreground = "#f0f0f0"
     #  Give dmenu a custom background color for the selected menu entry.
-    selected-background = "#00ffc0"
+    selected-background = "#00c0ff"
     #  Give dmenu a custom font color for the selected menu entry.
     selected-foreground = "#000000"
     #  Make dmenu list items vertically using the given number of lines.
