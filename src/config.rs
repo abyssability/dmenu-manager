@@ -40,7 +40,7 @@ pub fn get() -> anyhow::Result<Config> {
     let base_dirs = BaseDirs::new().expect("unreachable");
     let args = parse_args(&dirs);
 
-    let config = if let Some(path) = args.get_one::<String>("CONFIG") {
+    let config = if let Some(path) = args.get_one::<String>("PATTERN") {
         fs::read_to_string(path).context(format!(
             "unable to read config file `{}`",
             style_stderr!(bold(), "{path}")
@@ -103,34 +103,34 @@ fn parse_args(dirs: &ProjectDirs) -> ArgMatches {
                 ".\n",
                 "The toml config may be piped in instead of specifying a file path.\n",
                 "A config may be written at `{}/config.toml`.\n",
-                "This will specify default options that are overridden by the primary config."
+                "This will define default options that are overridden by the main pattern."
             ),
             dirs.config_dir().display()
         ))
         .after_help(&*format!(
             "{}\n{}\n\n{}",
-            style_stdout!(ColorSpec::new().set_fg(Some(Color::Yellow)), "CONFIG:"),
+            style_stdout!(ColorSpec::new().set_fg(Some(Color::Yellow)), "PATTERN:"),
             SHORT_EXAMPLE,
             HELP_FOOTER
         ))
         .after_long_help(&*format!(
             "{}\n{}\n\n{}",
-            style_stdout!(ColorSpec::new().set_fg(Some(Color::Yellow)), "CONFIG:"),
+            style_stdout!(ColorSpec::new().set_fg(Some(Color::Yellow)), "PATTERN:"),
             LONG_EXAMPLE,
             HELP_FOOTER
         ))
         .arg(
             Arg::new("home-config")
-                .help("Display what path will be checked for a default config")
+                .help("Output the directory that will be checked for config files")
                 .long("home-config-path"),
         )
         .arg({
-            let config = Arg::new("CONFIG")
-                .help("Path to the target toml config file")
+            let config = Arg::new("PATTERN")
+                .help("Path to a pattern file")
                 .long_help(
-                    "Path to the target toml config file.\n\
-                     Either this must be specified, or the config must be piped in.\n\
-                     If set, anything piped through stdin is ignored.",
+                    "Path to a pattern file.\n\
+                     Either this must be specified, or the pattern must be piped in.\n\
+                     If specified, anything piped through stdin is ignored.",
                 )
                 .index(1);
             if atty::is(Stream::Stdin) {
