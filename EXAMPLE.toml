@@ -67,7 +67,7 @@
     path = ["~/bin"]
     #  Add programs found in the PATH environment variable to the menu.
     #path = true
-    #  path: A list of directories to search for binaries; must be an array of string.
+    #  path: A list of directories to search for binaries; must be an array of strings.
     #  env: Use the PATH environment variable.
     #  replace: Override any custom entries that have the same name.
     #  recursive: Also check all path subdirectories for executables.
