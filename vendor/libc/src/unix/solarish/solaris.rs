@@ -33,8 +33,13 @@ pub const AF_LOCAL: ::c_int = 0;
 pub const AF_FILE: ::c_int = 0;
 
 pub const TCP_KEEPIDLE: ::c_int = 0x1d;
-pub const TCP_KEEPCNT: ::c_int = 0x1e;
-pub const TCP_KEEPINTVL: ::c_int = 0x1f;
+pub const TCP_KEEPINTVL: ::c_int = 0x1e;
+pub const TCP_KEEPCNT: ::c_int = 0x1f;
+
+pub const F_DUPFD_CLOEXEC: ::c_int = 47;
+pub const F_DUPFD_CLOFORK: ::c_int = 49;
+pub const F_DUP2FD_CLOEXEC: ::c_int = 48;
+pub const F_DUP2FD_CLOFORK: ::c_int = 50;
 
 extern "C" {
     pub fn fexecve(
@@ -67,6 +72,8 @@ extern "C" {
     pub fn fattach(fildes: ::c_int, path: *const ::c_char) -> ::c_int;
 
     pub fn pthread_getattr_np(thread: ::pthread_t, attr: *mut ::pthread_attr_t) -> ::c_int;
+
+    pub fn euidaccess(path: *const ::c_char, amode: ::c_int) -> ::c_int;
 }
 
 s_no_extra_traits! {

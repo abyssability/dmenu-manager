@@ -277,6 +277,16 @@ impl ::Clone for fpos_t {
     }
 }
 
+// Special handling for all print and scan type functions because of https://github.com/rust-lang/libc/issues/2860
+#[cfg_attr(
+    all(windows, target_env = "msvc"),
+    link(name = "legacy_stdio_definitions")
+)]
+extern "C" {
+    pub fn printf(format: *const c_char, ...) -> ::c_int;
+    pub fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> ::c_int;
+}
+
 extern "C" {
     pub fn isalnum(c: c_int) -> c_int;
     pub fn isalpha(c: c_int) -> c_int;
@@ -319,8 +329,6 @@ extern "C" {
     pub fn feof(stream: *mut FILE) -> c_int;
     pub fn ferror(stream: *mut FILE) -> c_int;
     pub fn perror(s: *const c_char);
-    pub fn printf(format: *const c_char, ...) -> ::c_int;
-    pub fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> ::c_int;
     pub fn atoi(s: *const c_char) -> c_int;
     pub fn strtod(s: *const c_char, endp: *mut *mut c_char) -> c_double;
     pub fn strtof(s: *const c_char, endp: *mut *mut c_char) -> c_float;
@@ -501,6 +509,14 @@ extern "C" {
     pub fn aligned_malloc(size: size_t, alignment: size_t) -> *mut c_void;
     #[link_name = "_aligned_free"]
     pub fn aligned_free(ptr: *mut ::c_void);
+    #[link_name = "_putenv"]
+    pub fn putenv(envstring: *const ::c_char) -> ::c_int;
+    #[link_name = "_wputenv"]
+    pub fn wputenv(envstring: *const ::wchar_t) -> ::c_int;
+    #[link_name = "_putenv_s"]
+    pub fn putenv_s(envstring: *const ::c_char, value_string: *const ::c_char) -> ::errno_t;
+    #[link_name = "_wputenv_s"]
+    pub fn wputenv_s(envstring: *const ::wchar_t, value_string: *const ::wchar_t) -> ::errno_t;
 }
 
 extern "system" {

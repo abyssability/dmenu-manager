@@ -9,9 +9,9 @@ use std::{
 };
 
 use anyhow::{anyhow, Context};
-use atty::Stream;
 use clap::{command, crate_description, Arg, ArgMatches};
 use directories::{BaseDirs, ProjectDirs};
+use is_terminal::IsTerminal;
 use termcolor::{Color, ColorSpec};
 use toml::{map::Map, Value};
 
@@ -133,7 +133,7 @@ fn parse_args(dirs: &ProjectDirs) -> ArgMatches {
                      If specified, anything piped through stdin is ignored.",
                 )
                 .index(1);
-            if atty::is(Stream::Stdin) {
+            if io::stdin().is_terminal() {
                 config.required_unless_present("home-config")
             } else {
                 config

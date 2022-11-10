@@ -1,16 +1,14 @@
-use std::{
-    collections, env,
-    ffi::OsString,
-    fs::{self, ReadDir},
-    io::Write,
-    panic,
-    path::PathBuf,
-    process::{self, Command, Stdio},
-    thread,
-};
+use std::ffi::OsString;
+use std::fs::ReadDir;
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::{env, fs, io, panic, process, thread};
 
+use ahash::{HashMap, HashSet};
 use anyhow::{anyhow, Context};
 use is_executable::IsExecutable;
+use is_terminal::IsTerminal;
 use mimalloc::MiMalloc;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
@@ -21,9 +19,6 @@ use tag::{Binary, Decimal, Tag};
 mod config;
 mod imstr;
 mod tag;
-
-type HashMap<K, V> = collections::HashMap<K, V, ahash::RandomState>;
-type HashSet<T> = collections::HashSet<T, ahash::RandomState>;
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: MiMalloc = MiMalloc;
@@ -452,7 +447,7 @@ fn bold() -> ColorSpec {
 }
 
 fn stderr_color_choice() -> ColorChoice {
-    if atty::is(atty::Stream::Stderr) {
+    if io::stderr().is_terminal() {
         ColorChoice::Auto
     } else {
         ColorChoice::Never
@@ -460,11 +455,11 @@ fn stderr_color_choice() -> ColorChoice {
 }
 
 fn stderr_color_enabled() -> bool {
-    atty::is(atty::Stream::Stderr) && StandardStream::stderr(ColorChoice::Auto).supports_color()
+    io::stderr().is_terminal() && StandardStream::stderr(ColorChoice::Auto).supports_color()
 }
 
 fn stdout_color_enabled() -> bool {
-    atty::is(atty::Stream::Stdout) && StandardStream::stdout(ColorChoice::Auto).supports_color()
+    io::stdout().is_terminal() && StandardStream::stdout(ColorChoice::Auto).supports_color()
 }
 
 macro_rules! style_stderr {
