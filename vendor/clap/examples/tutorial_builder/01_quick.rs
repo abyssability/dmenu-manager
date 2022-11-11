@@ -1,11 +1,9 @@
-// Note: this requires the `cargo` feature
-
 use std::path::PathBuf;
 
 use clap::{arg, command, value_parser, ArgAction, Command};
 
 fn main() {
-    let matches = command!()
+    let matches = command!() // requires `cargo` feature
         .arg(arg!([name] "Optional name to operate on"))
         .arg(
             arg!(
@@ -15,12 +13,9 @@ fn main() {
             .required(false)
             .value_parser(value_parser!(PathBuf)),
         )
-        .arg(
-            arg!(
-                -d --debug "Turn debugging information on"
-            )
-            .action(ArgAction::Count),
-        )
+        .arg(arg!(
+            -d --debug ... "Turn debugging information on"
+        ))
         .subcommand(
             Command::new("test")
                 .about("does testing things")

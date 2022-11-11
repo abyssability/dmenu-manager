@@ -1,14 +1,13 @@
-// Note: this requires the `cargo` feature
-
 use std::path::PathBuf;
 
-use clap::{arg, command, value_parser, ArgAction, ErrorKind};
+use clap::error::ErrorKind;
+use clap::{arg, command, value_parser, ArgAction};
 
 fn main() {
     // Create application like normal
-    let mut cmd = command!()
+    let mut cmd = command!() // requires `cargo` feature
         // Add the version arguments
-        .arg(arg!(--"set-ver" <VER> "set version manually").required(false))
+        .arg(arg!(--"set-ver" <VER> "set version manually"))
         .arg(arg!(--major         "auto inc major").action(ArgAction::SetTrue))
         .arg(arg!(--minor         "auto inc minor").action(ArgAction::SetTrue))
         .arg(arg!(--patch         "auto inc patch").action(ArgAction::SetTrue))
@@ -17,16 +16,11 @@ fn main() {
         .arg(arg!([INPUT_FILE] "some regular input").value_parser(value_parser!(PathBuf)))
         .arg(
             arg!(--"spec-in" <SPEC_IN> "some special input argument")
-                .required(false)
                 .value_parser(value_parser!(PathBuf)),
         )
         // Now let's assume we have a -c [config] argument which requires one of
         // (but **not** both) the "input" arguments
-        .arg(
-            arg!(config: -c <CONFIG>)
-                .required(false)
-                .value_parser(value_parser!(PathBuf)),
-        );
+        .arg(arg!(config: -c <CONFIG>).value_parser(value_parser!(PathBuf)));
     let matches = cmd.get_matches_mut();
 
     // Let's assume the old version 1.2.3
@@ -36,10 +30,7 @@ fn main() {
 
     // See if --set-ver was used to set the version manually
     let version = if let Some(ver) = matches.get_one::<String>("set-ver") {
-        if *matches.get_one::<bool>("major").expect("defaulted by clap")
-            || *matches.get_one::<bool>("minor").expect("defaulted by clap")
-            || *matches.get_one::<bool>("patch").expect("defaulted by clap")
-        {
+        if matches.get_flag("major") || matches.get_flag("minor") || matches.get_flag("patch") {
             cmd.error(
                 ErrorKind::ArgumentConflict,
                 "Can't do relative and absolute version change",
@@ -50,9 +41,9 @@ fn main() {
     } else {
         // Increment the one requested (in a real program, we'd reset the lower numbers)
         let (maj, min, pat) = (
-            *matches.get_one::<bool>("major").expect("defaulted by clap"),
-            *matches.get_one::<bool>("minor").expect("defaulted by clap"),
-            *matches.get_one::<bool>("patch").expect("defaulted by clap"),
+            matches.get_flag("major"),
+            matches.get_flag("minor"),
+            matches.get_flag("patch"),
         );
         match (maj, min, pat) {
             (true, false, false) => major += 1,

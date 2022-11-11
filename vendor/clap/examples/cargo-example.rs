@@ -1,5 +1,3 @@
-// Note: this requires the `cargo` feature
-
 fn main() {
     let cmd = clap::Command::new("cargo")
         .bin_name("cargo")
@@ -7,7 +5,6 @@ fn main() {
         .subcommand(
             clap::command!("example").arg(
                 clap::arg!(--"manifest-path" <PATH>)
-                    .required(false)
                     .value_parser(clap::value_parser!(std::path::PathBuf)),
             ),
         );

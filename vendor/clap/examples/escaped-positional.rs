@@ -1,19 +1,13 @@
-// Note: this requires the `cargo` feature
-
 use clap::{arg, command, value_parser, ArgAction};
 
 fn main() {
-    let matches = command!()
+    let matches = command!() // requires `cargo` feature
         .arg(arg!(eff: -f).action(ArgAction::SetTrue))
-        .arg(
-            arg!(pea: -p <PEAR>)
-                .required(false)
-                .value_parser(value_parser!(String)),
-        )
+        .arg(arg!(pea: -p <PEAR>).value_parser(value_parser!(String)))
         .arg(
             // Indicates that `slop` is only accessible after `--`.
             arg!(slop: [SLOP])
-                .multiple_values(true)
+                .num_args(1..)
                 .last(true)
                 .value_parser(value_parser!(String)),
         )
@@ -22,10 +16,7 @@ fn main() {
     // This is what will happen with `myprog -f -p=bob -- sloppy slop slop`...
 
     // -f used: true
-    println!(
-        "-f used: {:?}",
-        *matches.get_one::<bool>("eff").expect("defaulted by clap")
-    );
+    println!("-f used: {:?}", matches.get_flag("eff"));
     // -p's value: Some("bob")
     println!("-p's value: {:?}", matches.get_one::<String>("pea"));
     // 'slops' values: Some(["sloppy", "slop", "slop"])

@@ -1,17 +1,15 @@
-// Note: this requires the `derive` feature
-
 use clap::Parser;
 
-#[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[derive(Parser)] // requires `derive` feature
+#[command(author, version, about, long_about = None)]
 struct Cli {
-    #[clap(short = 'f', action)]
+    #[arg(short = 'f')]
     eff: bool,
 
-    #[clap(short = 'p', value_name = "PEAR", value_parser)]
+    #[arg(short = 'p', value_name = "PEAR")]
     pea: Option<String>,
 
-    #[clap(last = true, value_parser)]
+    #[arg(last = true)]
     slop: Vec<String>,
 }
 

@@ -12,7 +12,7 @@ use anyhow::{anyhow, Context};
 use clap::{command, crate_description, Arg, ArgMatches};
 use directories::{BaseDirs, ProjectDirs};
 use is_terminal::IsTerminal;
-use termcolor::{Color, ColorSpec};
+use termcolor::ColorSpec;
 use toml::{map::Map, Value};
 
 use crate::{bold, imstr::ImStr, style_stderr, style_stdout, HashSet};
@@ -31,7 +31,6 @@ const SHORT_EXAMPLE: &str = r#"    # A short example config; see `--help` for mo
     dmenu.prompt = "example:"
 "#;
 const LONG_EXAMPLE: &str = include_str!("../EXAMPLE.toml");
-const HELP_FOOTER: &str = "Use `-h` for short descriptions, or `--help` for more detail.";
 
 pub fn get() -> anyhow::Result<Config> {
     let dirs = ProjectDirs::from("", "", "dmm")
@@ -97,7 +96,7 @@ fn read_home_config(dirs: &Path) -> anyhow::Result<Option<String>> {
 fn parse_args(dirs: &ProjectDirs) -> ArgMatches {
     let args = command!()
         .about(concat!(crate_description!(), ".\n"))
-        .long_about(&*format!(
+        .long_about(format!(
             concat!(
                 crate_description!(),
                 ".\n",
@@ -107,39 +106,44 @@ fn parse_args(dirs: &ProjectDirs) -> ArgMatches {
             ),
             dirs.config_dir().display()
         ))
-        .after_help(&*format!(
-            "{}\n{}\n\n{}",
-            style_stdout!(ColorSpec::new().set_fg(Some(Color::Yellow)), "PATTERN:"),
-            SHORT_EXAMPLE,
-            HELP_FOOTER
-        ))
-        .after_long_help(&*format!(
-            "{}\n{}\n\n{}",
-            style_stdout!(ColorSpec::new().set_fg(Some(Color::Yellow)), "PATTERN:"),
-            LONG_EXAMPLE,
-            HELP_FOOTER
-        ))
         .arg(
             Arg::new("home-config")
                 .help("Output the directory that will be checked for config files")
                 .long("home-config-path"),
         )
         .arg({
-            let config = Arg::new("PATTERN")
+            Arg::new("PATTERN")
                 .help("Path to a pattern file")
                 .long_help(
                     "Path to a pattern file.\n\
                      Either this must be specified, or the pattern must be piped in.\n\
                      If specified, anything piped through stdin is ignored.",
                 )
-                .index(1);
-            if io::stdin().is_terminal() {
-                config.required_unless_present("home-config")
-            } else {
-                config
-            }
+                .index(1)
         })
-        .get_matches();
+        .after_help(format!(
+            "{}\n{}",
+            style_stdout!(
+                ColorSpec::new().set_bold(true).set_underline(true),
+                "Example Pattern:"
+            ),
+            SHORT_EXAMPLE
+        ))
+        .after_long_help(format!(
+            "{}\n{}",
+            style_stdout!(
+                ColorSpec::new().set_bold(true).set_underline(true),
+                "Example Pattern:"
+            ),
+            LONG_EXAMPLE
+        ));
+    let args = if io::stdin().is_terminal() {
+        args.arg_required_else_help(true)
+    } else {
+        args
+    };
+
+    let args = args.get_matches();
 
     if args.contains_id("home-config") {
         println!("{}", dirs.config_dir().display());
