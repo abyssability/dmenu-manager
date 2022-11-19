@@ -13,7 +13,7 @@ use std::{
 /// To create a static, unallocated string, use [`Self::new`].
 ///
 /// ```
-/// use crate::imstr::ImStr;
+/// use dmm::imstr::ImStr;
 ///
 /// let string = String::from("Hello, world!");
 /// let unallocated = ImStr::new("Hello, world!");

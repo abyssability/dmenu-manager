@@ -3,22 +3,18 @@ use std::fs::ReadDir;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use std::{env, fs, io, panic, process, thread};
+use std::{env, fs, panic, process, thread};
 
-use ahash::{HashMap, HashSet};
+use ahash::HashMap;
 use anyhow::{anyhow, Context};
 use is_executable::IsExecutable;
-use is_terminal::IsTerminal;
 use mimalloc::MiMalloc;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use termcolor::{Color, ColorSpec, StandardStream};
 
-use config::{BinPath, Config, Custom, Entry, Run, Shell};
-use imstr::ImStr;
-use tag::{Binary, Decimal, Tag};
-
-mod config;
-mod imstr;
-mod tag;
+use dmm::config::{self, BinPath, Config, Custom, Entry, Run, Shell};
+use dmm::imstr::ImStr;
+use dmm::style::{bold, stderr_color_choice, style_stderr, write_style};
+use dmm::tag::{Binary, Decimal, Tag};
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: MiMalloc = MiMalloc;
@@ -439,66 +435,3 @@ fn report_error(err: &anyhow::Error, name: &str, style: &ColorSpec) {
     }
     eprintln!();
 }
-
-fn bold() -> ColorSpec {
-    let mut style = ColorSpec::new();
-    style.set_bold(true);
-    style
-}
-
-fn stderr_color_choice() -> ColorChoice {
-    if io::stderr().is_terminal() {
-        ColorChoice::Auto
-    } else {
-        ColorChoice::Never
-    }
-}
-
-fn stderr_color_enabled() -> bool {
-    io::stderr().is_terminal() && StandardStream::stderr(ColorChoice::Auto).supports_color()
-}
-
-fn stdout_color_enabled() -> bool {
-    io::stdout().is_terminal() && StandardStream::stdout(ColorChoice::Auto).supports_color()
-}
-
-macro_rules! style_stderr {
-    ($style:expr, $($token:tt)+) => {
-        if crate::stderr_color_enabled() {
-            let mut buf = termcolor::Ansi::new(Vec::new());
-            crate::write_style!(buf, $style, $($token)+);
-            String::from_utf8(buf.into_inner()).unwrap()
-        } else {
-            format!($($token)+)
-        }
-    }
-}
-
-macro_rules! style_stdout {
-    ($style:expr, $($token:tt)+) => {
-        if crate::stdout_color_enabled() {
-            let mut buf = termcolor::Ansi::new(Vec::new());
-            crate::write_style!(buf, $style, $($token)+);
-            String::from_utf8(buf.into_inner()).unwrap()
-        } else {
-            format!($($token)+)
-        }
-    }
-}
-
-macro_rules! write_style {
-    ($stream:ident, $style:expr, $($token:tt)+) => {
-        {
-            use termcolor::WriteColor;
-            use std::io::Write;
-
-            $stream.set_color(&$style).unwrap();
-            write!(&mut $stream, $($token)+).unwrap();
-            $stream.reset().unwrap();
-        }
-    }
-}
-
-use style_stderr;
-use style_stdout;
-use write_style;

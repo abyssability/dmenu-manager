@@ -1,21 +1,17 @@
-use std::{
-    env,
-    fmt::{self, Display, Write},
-    fs,
-    io::{self, ErrorKind, Read},
-    panic,
-    path::Path,
-    process,
-};
+use std::fmt::{Display, Write};
+use std::io::{ErrorKind, Read};
+use std::path::Path;
+use std::{env, fmt, fs, io, panic, process};
 
+use ahash::HashSet;
 use anyhow::{anyhow, Context};
 use clap::{command, crate_description, Arg, ArgMatches};
 use directories::{BaseDirs, ProjectDirs};
 use is_terminal::IsTerminal;
-use termcolor::ColorSpec;
 use toml::{map::Map, Value};
 
-use crate::{bold, imstr::ImStr, style_stderr, style_stdout, HashSet};
+use crate::imstr::ImStr;
+use crate::style::{bold, style_stderr, style_stdout};
 
 const SHORT_EXAMPLE: &str = r#"    # A short example config; see `--help` for more info.
     [menu]
@@ -123,18 +119,12 @@ fn parse_args(dirs: &ProjectDirs) -> ArgMatches {
         })
         .after_help(format!(
             "{}\n{}",
-            style_stdout!(
-                ColorSpec::new().set_bold(true).set_underline(true),
-                "Example Pattern:"
-            ),
+            style_stdout!(bold().set_underline(true), "Example Pattern:"),
             SHORT_EXAMPLE
         ))
         .after_long_help(format!(
             "{}\n{}",
-            style_stdout!(
-                ColorSpec::new().set_bold(true).set_underline(true),
-                "Example Pattern:"
-            ),
+            style_stdout!(bold().set_underline(true), "Example Pattern:"),
             LONG_EXAMPLE
         ));
     let args = if io::stdin().is_terminal() {
