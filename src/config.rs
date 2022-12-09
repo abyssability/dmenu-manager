@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::{Display, Write};
 use std::io::{ErrorKind, Read};
 use std::path::Path;
@@ -594,30 +595,28 @@ pub struct Dmenu {
 }
 
 impl Dmenu {
-    pub fn args(&self) -> Vec<ImStr> {
-        let imstr_from_int = |int: u64| ImStr::from(int.to_string());
-
-        let mut args = Vec::new();
+    pub fn args(&self) -> Vec<Cow<'_, str>> {
+        let mut args = Vec::with_capacity(12);
 
         let options = [
-            ("-p", self.prompt.clone()),
-            ("-fn", self.font.clone()),
-            ("-nb", self.background.clone()),
-            ("-nf", self.foreground.clone()),
-            ("-sb", self.selected_background.clone()),
-            ("-sf", self.selected_foreground.clone()),
-            ("-l", self.lines.map(imstr_from_int)),
-            ("-m", self.monitor.map(imstr_from_int)),
-            ("-w", self.window_id.clone()),
+            ("-p", self.prompt.as_deref().map(Cow::from)),
+            ("-fn", self.font.as_deref().map(Cow::from)),
+            ("-nb", self.background.as_deref().map(Cow::from)),
+            ("-nf", self.foreground.as_deref().map(Cow::from)),
+            ("-sb", self.selected_background.as_deref().map(Cow::from)),
+            ("-sf", self.selected_foreground.as_deref().map(Cow::from)),
+            ("-w", self.window_id.as_deref().map(Cow::from)),
+            ("-l", self.lines.map(|int| Cow::from(int.to_string()))),
+            ("-m", self.monitor.map(|int| Cow::from(int.to_string()))),
         ];
 
-        self.bottom.then(|| args.push(ImStr::new("-b")));
-        (!self.case_sensitive).then(|| args.push(ImStr::new("-i")));
-        self.fast.then(|| args.push(ImStr::new("-f")));
+        self.bottom.then(|| args.push(Cow::from("-b")));
+        (!self.case_sensitive).then(|| args.push(Cow::from("-i")));
+        self.fast.then(|| args.push(Cow::from("-f")));
 
         for (flag, option) in options {
             if let Some(option) = option {
-                args.extend([ImStr::new(flag), option]);
+                args.extend([Cow::from(flag), option]);
             }
         }
 

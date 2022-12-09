@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ffi::OsString;
 use std::fs::ReadDir;
 use std::io::Write;
@@ -286,12 +287,12 @@ fn display_entries<T: Tag>(config: &Config, entries: &[RunEntry]) -> String {
     display
 }
 
-fn run_dmenu(menu_display: String, dmenu_args: &[ImStr]) -> anyhow::Result<String> {
+fn run_dmenu(menu_display: String, dmenu_args: &[Cow<'_, str>]) -> anyhow::Result<String> {
     let mut dmenu = Command::new("dmenu")
         .args(
             dmenu_args
                 .iter()
-                .map(ImStr::as_str)
+                .map(Cow::as_ref)
                 .collect::<Vec<&str>>()
                 .as_slice(),
         )
