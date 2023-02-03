@@ -23,7 +23,7 @@ Execute the following in a terminal to install the latest stable version:
 mkdir -p ~/bin
 curl -L https://github.com/abysssol/dmm/releases/download/1.0.0/dmm-x86_64-linux.gz \
   | gzip -dc > ~/bin/dmm
-chmod 744 ~/bin/dmm
+chmod 700 ~/bin/dmm
 ```
 
 Many distributions add `~/bin/` to `$PATH` by default, but not all do.
