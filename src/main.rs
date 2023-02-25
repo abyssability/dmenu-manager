@@ -9,6 +9,7 @@ use std::{env, fs, panic, process, thread};
 use ahash::HashMap;
 use anyhow::{anyhow, Context};
 use is_executable::IsExecutable;
+#[cfg(windows)]
 use mimalloc::MiMalloc;
 use termcolor::{Color, ColorSpec, StandardStream};
 
@@ -17,6 +18,7 @@ use dmm::imstr::ImStr;
 use dmm::style::{bold, stderr_color_choice, style_stderr, write_style};
 use dmm::tag::{Binary, Decimal, Tag};
 
+#[cfg(windows)]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: MiMalloc = MiMalloc;
 
