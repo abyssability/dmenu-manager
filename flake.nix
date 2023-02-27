@@ -30,7 +30,20 @@
   };
 
   outputs = { self, nixpkgs, utils, rust, crane, advisory-db, ... }:
-    utils.lib.eachSystem utils.lib.allSystems (system:
+    utils.lib.eachSystem [
+      "aarch64-darwin"
+      "aarch64-linux"
+      #"armv5tel-linux"# error: missing bootstrap url for platform armv5te-unknown-linux-gnueabi
+      "armv6l-linux"
+      "armv7a-linux"
+      "armv7l-linux"
+      "i686-linux"
+      #"mipsel-linux" # error: attribute 'busybox' missing
+      "powerpc64le-linux"
+      "riscv64-linux"
+      "x86_64-darwin"
+      "x86_64-linux"
+    ] (system:
       let
         pkgs = import nixpkgs { inherit system; };
 
