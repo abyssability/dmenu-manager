@@ -39,7 +39,7 @@
           aarch64-linux = "aarch64-unknown-linux-musl";
         };
         useAltTarget = altTargets ? ${system};
-        altTarget = if useAltTarget then altTargets.${system} else null;
+        altTarget = altTargets.${system} or null;
 
         baseToolchain = rust.packages.${system}.rust;
         altToolchain = baseToolchain.override { targets = [ altTarget ]; };
