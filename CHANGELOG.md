@@ -11,3 +11,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - This changelog
 - Symbol stripping on release builds to reduce binary size
+- A nix flake that allows building with the [nix](https://nixos.org) package manager
