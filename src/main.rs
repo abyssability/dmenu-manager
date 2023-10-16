@@ -247,9 +247,16 @@ fn walk_dir(
             fs::metadata(entry.path())
                 .context("error reading file metadata")
                 .map(|entry| entry.is_dir())
+                .map_err(|err| {
+                    err.context(format!("symlink `{}` is broken", entry.path().display()))
+                })
+                .unwrap_or_else(|err| {
+                    warn_error(&err);
+                    false
+                })
         };
 
-        if filetype.is_dir() || follow_symlink_is_dir()? {
+        if filetype.is_dir() || follow_symlink_is_dir() {
             recur.push(entry.path());
         } else if entry.path().is_executable() {
             files.push((
